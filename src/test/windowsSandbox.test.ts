@@ -39,7 +39,9 @@ native('Native Windows LPAC enforcement', function () {
   let nodeRuntime: string;
   const run = async (script: string, args: string[] = []) => {
     const launch = await runtime.prepareCommand(staged, original, path.join(nodeRuntime, 'node.exe'), ['-e', script, ...args], nodeRuntime);
-    return execFile(launch.executable, launch.arguments, { cwd: launch.cwd, env: launch.environment, timeout: 45_000, maxBuffer: 1024 * 1024 });
+    return execFile(launch.executable, launch.arguments, { cwd: launch.cwd, env: launch.environment, timeout: 45_000, maxBuffer: 1024 * 1024 }).catch(error => {
+      throw new Error(`${error.message}\nNative diagnostic: ${JSON.stringify({ code: error.code, signal: error.signal, killed: error.killed, stdout: String(error.stdout).slice(-2048), stderr: String(error.stderr).slice(-2048) })}`);
+    });
   };
   beforeEach(async () => {
     root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'guard windows spaces & ')));
@@ -60,8 +62,9 @@ native('Native Windows LPAC enforcement', function () {
       denied(()=>fs.writeFileSync(file,'bad'));denied(()=>fs.writeFileSync(p.join(p.dirname(file),'new.txt'),'bad'));
       denied(()=>fs.unlinkSync(file));denied(()=>fs.renameSync(file,file+'.moved'));denied(()=>fs.mkdirSync(file+'.folder'));
       fs.writeFileSync(p.join(stage,'temp'),'bad');denied(()=>fs.renameSync(p.join(stage,'temp'),file));
-      const child=cp.spawnSync(process.execPath,['-e',"try{require('fs').writeFileSync(process.argv[1],'bad');process.exit(51)}catch(e){if(!['EPERM','EACCES','ENOENT'].includes(e.code))throw e;process.stdout.write('CHILD_DENIED')}",file],{encoding:'utf8'});
-      if(child.status!==0||child.stdout!=='CHILD_DENIED')throw Error('child denial not verified:'+child.stderr);
+      process.stdout.write('BEFORE_CHILD;');
+      const child=cp.spawnSync(process.execPath,['-e',"try{require('fs').writeFileSync(process.argv[1],'bad');process.exit(51)}catch(e){if(!['EPERM','EACCES','ENOENT'].includes(e.code))throw e;process.stdout.write('CHILD_DENIED')}",file],{encoding:'utf8',timeout:10000});
+      if(child.status!==0||child.stdout!=='CHILD_DENIED')throw Error('child denial not verified:'+JSON.stringify({status:child.status,error:child.error&&child.error.code,signal:child.signal,stdout:child.stdout,stderr:child.stderr}));
       fs.writeFileSync(p.join(stage,'allowed'),'yes');process.stdout.write('CHECKED:'+count);`, [file, staged]);
     assert.match(result.stdout, /CHECKED:6/);
     assert.equal(await fs.readFile(file, 'utf8'), 'original');
@@ -104,7 +107,7 @@ native('Native Windows LPAC enforcement', function () {
     const server = createServer(socket => { socket.on('error', () => undefined); connected = true; socket.end('host control'); });
     await new Promise<void>(resolve => server.listen(pipe, resolve));
     try {
-      await new Promise<void>((resolve, reject) => { const client = connect(pipe); client.on('connect', () => { client.destroy(); resolve(); }); client.on('error', reject); });
+      await new Promise<void>((resolve, reject) => { const client = connect(pipe); client.resume(); client.on('end', () => { client.destroy(); resolve(); }); client.on('error', reject); });
       connected = false;
       const result = await run(`const socket=require('net').connect(process.argv[1]);socket.on('connect',()=>process.exit(73));
         socket.on('error',e=>process.stdout.write('DENIED:'+e.code));socket.setTimeout(5000,()=>process.exit(74));`, [pipe]);

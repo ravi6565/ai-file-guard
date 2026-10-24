@@ -315,7 +315,7 @@ public static class GuardLauncher
     private static void VerifyToken(IntPtr process, IntPtr packageSid)
     {
         IntPtr token;
-        Check(OpenProcessToken(process, 8 | 2, out token), "Query sandbox token");
+        Check(OpenProcessToken(process, 8 | 2 | 0x80, out token), "Query sandbox token");
         try
         {
             int value, size;
@@ -333,8 +333,39 @@ public static class GuardLauncher
                 if (!CanAccessDescriptor(impersonation, new SecurityIdentifier(packageSid).Value)) throw new InvalidOperationException("Child does not honor its private package SID.");
             }
             finally { CloseHandle(impersonation); }
+            GrantDefaultObjectDacl(token, new SecurityIdentifier(packageSid));
         }
         finally { CloseHandle(token); }
+    }
+
+    private static void GrantDefaultObjectDacl(IntPtr token, SecurityIdentifier identity)
+    {
+        // New private kernel objects (including child stdio pipes/processes)
+        // must include the package SID, rather than only the host user's SID.
+        int size;
+        GetTokenInformationBuffer(token, 6, IntPtr.Zero, 0, out size);
+        if (size <= 0) throw new InvalidOperationException("Cannot size the default token DACL.");
+        IntPtr buffer = Marshal.AllocHGlobal(size), aclBuffer = IntPtr.Zero, information = IntPtr.Zero;
+        try
+        {
+            Check(GetTokenInformationBuffer(token, 6, buffer, size, out size), "Read default object DACL");
+            IntPtr acl = Marshal.ReadIntPtr(buffer);
+            if (acl == IntPtr.Zero) throw new InvalidOperationException("Default object DACL must not be null.");
+            int length = (ushort)Marshal.ReadInt16(acl, 2);
+            byte[] bytes = new byte[length]; Marshal.Copy(acl, bytes, 0, bytes.Length);
+            RawAcl updated = new RawAcl(bytes, 0);
+            updated.InsertAce(updated.Count, new CommonAce(AceFlags.None, AceQualifier.AccessAllowed, 0x10000000, identity, false, null));
+            bytes = new byte[updated.BinaryLength]; updated.GetBinaryForm(bytes, 0);
+            aclBuffer = Marshal.AllocHGlobal(bytes.Length); Marshal.Copy(bytes, 0, aclBuffer, bytes.Length);
+            information = Marshal.AllocHGlobal(IntPtr.Size); Marshal.WriteIntPtr(information, aclBuffer);
+            Check(SetTokenInformation(token, 6, information, IntPtr.Size), "Set private default object DACL");
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buffer);
+            if (aclBuffer != IntPtr.Zero) Marshal.FreeHGlobal(aclBuffer);
+            if (information != IntPtr.Zero) Marshal.FreeHGlobal(information);
+        }
     }
 
     private static bool CanAccessDescriptor(IntPtr token, string package)
@@ -370,6 +401,8 @@ public static class GuardLauncher
     [DllImport("advapi32.dll")] private static extern IntPtr FreeSid(IntPtr sid);
     [DllImport("advapi32.dll", SetLastError = true)] private static extern bool OpenProcessToken(IntPtr process, uint access, out IntPtr token);
     [DllImport("advapi32.dll", SetLastError = true)] private static extern bool GetTokenInformation(IntPtr token, int informationClass, out int information, int length, out int returned);
+    [DllImport("advapi32.dll", SetLastError = true, EntryPoint = "GetTokenInformation")] private static extern bool GetTokenInformationBuffer(IntPtr token, int informationClass, IntPtr information, int length, out int returned);
+    [DllImport("advapi32.dll", SetLastError = true)] private static extern bool SetTokenInformation(IntPtr token, int informationClass, IntPtr information, int length);
     [DllImport("advapi32.dll", SetLastError = true)] private static extern bool DuplicateToken(IntPtr token, int level, out IntPtr duplicate);
     [DllImport("advapi32.dll", SetLastError = true)] private static extern bool AccessCheck(IntPtr descriptor, IntPtr token, uint desired, ref GENERIC_MAPPING mapping, IntPtr privileges, ref uint privilegeLength, out uint granted, out bool allowed);
     [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)] private static extern bool ConvertStringSecurityDescriptorToSecurityDescriptor(string sddl, uint revision, out IntPtr descriptor, out uint length);
