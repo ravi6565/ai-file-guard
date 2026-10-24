@@ -8,7 +8,7 @@ AI File Guard 0.11 combines local file/folder locks, synchronized agent instruct
 
 Release targets are local VS Code desktop on macOS and Windows, with no Docker or WSL dependency. macOS uses `sandbox-exec`; Windows uses a native less-privileged AppContainer (LPAC) and a kill-on-close process job. Every machine must pass native token/write-denial verification; failed isolation never falls back to an unrestricted terminal. The Windows backend is a release candidate pending real Windows acceptance. Linux and remote/browser workspaces have no supported enforcement backend. Generated instruction files provide cooperative guidance, not universal AI write blocking. Independent security review and signed-in provider acceptance remain open.
 
-On Windows, the .NET Framework compiler bundled with Windows builds the launcher locally. Node.js with npm must be installed on PATH before opening a protected terminal; a private read-only copy of that runtime is prepared for the agent. Windows code grants access only to private copies/home/temp and runtime files; it does not change original-project permissions. No administrator elevation or loopback exemptions are requested. Windows uses the OS internet-client network capability rather than the macOS CONNECT proxy. These Windows properties must pass the native test gate before release.
+On Windows, the .NET Framework compiler bundled with Windows builds the launcher locally. The Windows x64 package includes a private Node.js/npm runtime with the upstream AppContainer pipe fix; it does not replace your installed Node. Untested stock runtimes are not used as a fallback. Windows code grants access only to private copies/home/temp and runtime files; it does not change original-project permissions. No administrator elevation or loopback exemptions are requested. Windows uses the OS internet-client network capability rather than the macOS CONNECT proxy. These Windows properties must pass the native test gate before release.
 
 If upgrading from the earlier local build (`ai-file-guard.ai-file-guard`), disable it before enabling `ravikiranv.ai-file-guard`. On first activation, saved local locks are imported from its storage in the same VS Code profile; later unlocks are not re-imported. Verify the imported locks before uninstalling the old extension or deleting its data. Existing terminals, review sessions, agent credentials and old permission records are not migrated. Close old terminals and start a new Protected AI Terminal; sign in there again as needed. If upgrading from a 0.8 build with filesystem locks, use its Restore Legacy File Permissions command before removing it.
 
@@ -44,7 +44,7 @@ These instruction projections are ordinary repository files. Committing their ma
 
 ## Scope and requirements
 
-Native macOS and Windows runtime checks must pass; unsupported platforms never launch an unconfined fallback. Apple marks `sandbox-exec` deprecated, so support must be revalidated on OS updates. Windows requires functioning LPAC APIs, the .NET Framework compiler, and Node.js/npm. No Windows support claim is established by macOS-only tests.
+Native macOS and Windows runtime checks must pass; unsupported platforms never launch an unconfined fallback. Apple marks `sandbox-exec` deprecated, so support must be revalidated on OS updates. Windows x64 requires functioning LPAC APIs, .NET Framework 4.8 with its compiler, built-in tar.exe, and the compatible private runtime included in the tested Windows package. No Windows support claim is established by macOS-only tests.
 
 The profile can read local files. Provider tools can send data using outbound networking according to their own behavior. Do not connect external privileged services that can write originals on an agent's behalf.
 
@@ -61,7 +61,7 @@ npm run test:integration
 npm run package
 ```
 
-Native tests require macOS and an execution context permitted to launch the OS sandbox. Unit tests do not count skipped native tests as proof. The optional `dist/test/checkManagedNetwork.js` diagnostic verifies public npm DNS/HTTPS; setting `AI_FILE_GUARD_CLI_SMOKE=1` additionally installs/runs Codex CLI only in a temporary sandbox home, without a model request or sign-in.
+Native tests require the corresponding supported host and an execution context permitted to launch its OS sandbox. Windows tests also require the generated private runtime; see resources/windows/RUNTIME.md. Unit tests do not count skipped native tests as proof. The optional `dist/test/checkManagedNetwork.js` diagnostic verifies public npm DNS/HTTPS; setting `AI_FILE_GUARD_CLI_SMOKE=1` additionally installs/runs Codex CLI only in a temporary sandbox home, without a model request or sign-in.
 
 Build the Marketplace candidate with `npm run package:preview`. Both the Preview label and pre-release channel are set. Platform-specific release artifacts must be packaged and tested on their supported hosts; a universal candidate is not proof of cross-platform enforcement. Publishing remains a manual action after both native acceptance gates pass. A build passing local checks is not a security certification or proof of every provider's signed-in workflow.
 

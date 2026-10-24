@@ -30,6 +30,7 @@ async function main(): Promise<void> {
     await fs.writeFile(path.join(workspace, 'nested-repo', 'docs', 'child.txt'), 'original child');
     process.env.AI_FILE_GUARD_TEST_WORKSPACE = workspace;
     const vsixIndex = process.argv.indexOf('--vsix');
+    const version = process.env.AI_FILE_GUARD_VSCODE_VERSION ?? 'stable';
     let vscodeExecutablePath: string | undefined;
     let developmentPath = path.resolve(__dirname, '../..');
     if (vsixIndex >= 0) {
@@ -37,7 +38,7 @@ async function main(): Promise<void> {
       if (!candidate) throw new Error('Pass the candidate VSIX path after --vsix.');
       const vsix = path.resolve(candidate);
       await fs.access(vsix);
-      vscodeExecutablePath = await downloadAndUnzipVSCode();
+      vscodeExecutablePath = await downloadAndUnzipVSCode(version);
       const [cli, ...cliArgs] = resolveCliArgsFromVSCodeExecutablePath(vscodeExecutablePath);
       const installed = await execFileAsync(cli, [...cliArgs, '--install-extension', vsix, '--force', '--user-data-dir', path.join(testRoot, 'profile'), '--extensions-dir', path.join(testRoot, 'extensions')]);
       console.log(installed.stdout.trim());
@@ -53,6 +54,7 @@ async function main(): Promise<void> {
       developmentPath = installedPath;
     }
     await runTests({
+      version,
       vscodeExecutablePath,
       extensionDevelopmentPath: developmentPath,
       extensionTestsPath: path.resolve(__dirname, 'integration', 'index'),

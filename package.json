@@ -105,6 +105,10 @@
     "package": "vsce package --pre-release",
     "package:preview": "vsce package --pre-release"
   },
+  "overrides": {
+    "@vscode/vsce": { "@azure/identity": "4.13.0", "uuid": "^11.1.1" },
+    "mocha": { "diff": "^8.0.3", "serialize-javascript": "^7.1.4" }
+  },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
     "@types/node": "^22.10.2",

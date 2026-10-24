@@ -44,6 +44,7 @@ jobs:
           name: windows-lpac-runtime
           path: resources/windows/runtime
       - run: npm ci
+      - run: npm audit --audit-level=high
       - run: npm run lint
       - run: npm test
       - run: npm run test:sandbox
@@ -57,3 +58,9 @@ jobs:
         if: runner.os != 'Linux'
       - run: npm run test:vsix -- candidate.vsix
         if: runner.os != 'Linux'
+      - uses: actions/upload-artifact@v4
+        if: runner.os != 'Linux'
+        with:
+          name: installed-candidate-${{ matrix.os }}-node-${{ matrix.node }}
+          path: candidate.vsix
+          if-no-files-found: error

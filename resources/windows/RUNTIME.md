@@ -20,3 +20,11 @@ fallback is permitted.
 Generated `runtime/` files are excluded from Git. Windows CI builds and caches
 them, then runs native and installed-VSIX acceptance with those exact files.
 Windows release packaging must include this directory and pass those gates.
+
+For a developer-only source build, use a Windows x64 host with PowerShell 7,
+Git, Python 3.12, NASM and the Visual Studio C++/ClangCL toolchain described in
+[Node's build prerequisites](https://github.com/nodejs/node/blob/v24.22.1/BUILDING.md#windows-prerequisites).
+Set `RUNNER_TEMP` to a temporary path without spaces before invoking the script
+outside CI. Building Node can take substantially longer than extension tests.
+These source-build tools are not requirements for users installing a complete,
+tested Windows VSIX; the runtime is already included in that package.

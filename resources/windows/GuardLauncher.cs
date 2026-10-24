@@ -276,6 +276,10 @@ public static class GuardLauncher
     private static string Quote(string argument)
     {
         if (argument.IndexOf('\0') >= 0) throw new ArgumentException("NUL in process argument.");
+        // Leave simple switches unquoted: cmd.exe parses switches itself rather
+        // than using the C runtime argv parser. Preserve standard escaping for
+        // empty arguments, scripts, whitespace and embedded quotes.
+        if (argument.Length > 0 && argument.IndexOfAny(new char[] { ' ', '\t', '\n', '\v', '"' }) < 0) return argument;
         StringBuilder result = new StringBuilder("\""); int slashes = 0;
         foreach (char value in argument)
         {

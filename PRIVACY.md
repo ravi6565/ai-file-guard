@@ -6,7 +6,7 @@ AI tools launched by the user may send source and other data to their configured
 
 Protected terminals use an isolated, per-project home inside extension storage. Provider credentials created there persist across sessions. Selected host provider variables (OPENAI_API_KEY, ANTHROPIC_API_KEY, GITHUB_TOKEN and GH_TOKEN) are passed to the child when present; their values are not written to logs by this extension. Host credential files are not automatically copied.
 
-Policy and runtime profiles are outside the agent-writable roots. Source copies and agent homes can contain sensitive data and should be retained/deleted according to local policy. Windows also creates local AppContainer profiles and a private copy of the installed Node.js/npm runtime. Uninstalling may leave this data behind.
+Policy and runtime profiles are outside the agent-writable roots. Source copies and agent homes can contain sensitive data and should be retained/deleted according to local policy. Windows also creates local AppContainer profiles and a private copy of the packaged compatible Node.js/npm runtime. Uninstalling may leave this data behind.
 
 Lock/unlock synchronizes managed sections in project agent instruction files, preserving custom guidance. These files contain relative locked paths and may be shared with AI providers when those tools load project instructions. They are ordinary files: committing them can share lock instructions with other developers. This repository ignores its generated instruction files to keep its own local rules out of commits; users of the extension must manage this separately in their projects. The authoritative local lock database is not transferred by Git commits or clones.
 

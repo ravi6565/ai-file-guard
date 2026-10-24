@@ -89,6 +89,14 @@ native('Native Windows LPAC enforcement', function () {
     await fs.writeFile(file, 'manual still allowed');
   });
 
+  it('runs the protected command shell, npm shim and public registry HTTPS', async () => {
+    const launch = await runtime.prepareCommand(staged, original, windowsSystemExecutable('cmd.exe'), ['/d', '/q', '/c', 'npm --version'], nodeRuntime);
+    const result = await execFile(launch.executable, launch.arguments, { cwd: launch.cwd, env: launch.environment, timeout: 30_000, maxBuffer: 128 * 1024 });
+    assert.match(result.stdout.trim(), /^\d+\.\d+\.\d+$/);
+    const network = await run(`require('https').get('https://registry.npmjs.org/-/ping',response=>{response.resume();if(response.statusCode!==200)process.exit(83);response.on('end',()=>process.stdout.write('HTTPS_OK'))}).on('error',error=>{console.error(error.message);process.exitCode=84}).setTimeout(10000,function(){this.destroy(Error('registry timeout'))});`);
+    assert.equal(network.stdout, 'HTTPS_OK');
+  });
+
   it('denies host loopback control services without adding network exemptions', async () => {
     let connected = false;
     const server = createServer(socket => { socket.on('error', () => undefined); connected = true; socket.end('host control'); });

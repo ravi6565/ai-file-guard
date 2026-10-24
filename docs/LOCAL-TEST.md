@@ -10,7 +10,7 @@ The original project remains open for your manual edits. The protected terminal 
 
 Disable the earlier local `ai-file-guard.ai-file-guard` extension. Install the 0.11.0 pre-release VSIX built for your host through **Extensions: Install from VSIX**, then reload all VS Code windows using this extension. The Marketplace identity is `ravikiranv.ai-file-guard`. Saved locks import once from the old identity in the same profile; sessions/credentials do not. Run **AI File Guard: Verify Managed Sandbox**. It must report verified OS write denial. If verification fails, no unconfined agent is launched. The Windows backend is a candidate and must pass this gate before publication.
 
-On Windows, use local VS Code desktop with functioning LPAC APIs, the Windows .NET Framework compiler, and Node.js/npm on PATH. Docker, WSL, administrator elevation and loopback exemptions are not required. The protected terminal uses cmd.exe and a private Node.js/npm runtime; install AI CLIs inside the isolated home. Host-installed CLI shims are not automatically imported. Windows uses its internet-client network capability instead of the macOS proxy. Test real provider sign-in separately.
+On Windows, use local VS Code desktop with functioning LPAC APIs, the Windows .NET Framework 4.8 compiler, built-in tar.exe, and the private runtime included in the Windows x64 package. Docker, WSL, administrator elevation and loopback exemptions are not required. The protected terminal uses cmd.exe and a private Node.js/npm runtime; install AI CLIs inside the isolated home. Host-installed CLI shims are not automatically imported. Windows uses its internet-client network capability instead of the macOS proxy. Test real provider sign-in separately.
 
 Lock an original file or folder. The Explorer tooltip and status bar identify the scope as managed agents. Manual editing/saving in the original editor should still work.
 
@@ -26,7 +26,7 @@ Start a fresh AI session to load the changed instructions. [Codex reads its inst
 
 Open Protected AI Terminal. Installed CLIs on PATH can be invoked there. Alternatively, install a CLI inside the protected home. npm global installations are redirected to that isolated home; they do not alter your normal global packages.
 
-For Codex, installation has been smoke-tested inside the runtime:
+For Codex, installation has been smoke-tested inside the macOS runtime. Windows installation and signed-in provider workflows still require acceptance:
 
 ```sh
 npm install -g @openai/codex

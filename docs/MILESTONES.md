@@ -7,8 +7,8 @@
 | 3 | Codex, Copilot, Claude and generic adapters; dynamic managed instruction sections | Implemented; file/folder lock, unlock, startup and cross-window synchronization tested |
 | 4 | Monitoring, integrity hashes, snapshots, safe recovery, audit logging | Implemented; Extension Host acceptance pending |
 | 5 | Brokered staging and trusted change application | Implemented with a verified managed macOS terminal; unrestricted AI extensions remain outside the boundary |
-| 6 | Cross-platform integration and adversarial security test matrix | CI matrix authored; Windows/Linux execution and manual matrix pending |
-| 7 | VSIX and marketplace/privacy/security documentation | Publisher/contact supplied; macOS Apple Silicon preview packaging prepared; manual upload and production gates remain |
+| 6 | Cross-platform integration and adversarial security test matrix | macOS native and installed-VSIX gates pass; Windows native runtime/terminal qualification and manual provider matrix remain open |
+| 7 | VSIX and marketplace/privacy/security documentation | Publisher/contact supplied; macOS Apple Silicon package installed and tested; Windows runtime/package gates, manual upload and production review remain |
 
 ## Phase 1–2 validation gates
 
