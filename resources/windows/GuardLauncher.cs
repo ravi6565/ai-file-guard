@@ -195,6 +195,15 @@ public static class GuardLauncher
         // children are handled individually below through verified handles.
         string extended = root.StartsWith("\\\\?\\", StringComparison.Ordinal) ? root : root.StartsWith("\\\\", StringComparison.Ordinal) ? "\\\\?\\UNC\\" + root.Substring(2) : "\\\\?\\" + root;
         IntPtr handle = CreateFile(extended, 0x02000000, 7, IntPtr.Zero, 3, 0x02000000 | 0x00200000, IntPtr.Zero);
+        bool metadataOnly = false;
+        if (handle == new IntPtr(-1) && Marshal.GetLastWin32Error() == 32)
+        {
+            // A running private executable/current directory can reject DELETE
+            // or data-write sharing implicit in MAXIMUM_ALLOWED. Reuse an
+            // already verified SID grant without changing its ACL or label.
+            handle = CreateFile(extended, 0x20000, 7, IntPtr.Zero, 3, 0x02000000 | 0x00200000, IntPtr.Zero);
+            metadataOnly = true;
+        }
         Check(handle != new IntPtr(-1), "Open sandbox-private object " + root);
         bool directory;
         try
@@ -230,19 +239,20 @@ public static class GuardLauncher
                     if (ace != null && ace.SecurityIdentifier.Equals(identity) && ace.AceQualifier == AceQualifier.AccessAllowed && (ace.AccessMask & rights) == rights && (ace.AceFlags & flags) == flags) granted = true;
                     if ((acl[i].AceFlags & AceFlags.Inherited) != 0 && insert == acl.Count) insert = i;
                 }
+                if (metadataOnly && !granted) throw new IOException("Sandbox-private storage is busy and has not been granted to this profile. Close its other terminals and retry: " + root);
                 if (!granted) acl.InsertAce(insert, new CommonAce(flags, AceQualifier.AccessAllowed, rights, identity, false, null));
                 byte[] aclBytes = new byte[acl.BinaryLength]; acl.GetBinaryForm(aclBytes, 0);
                 IntPtr aclBuffer = Marshal.AllocHGlobal(aclBytes.Length);
                 try
                 {
                     Marshal.Copy(aclBytes, 0, aclBuffer, aclBytes.Length);
-                    error = SetSecurityInfo(handle, 1, 4, IntPtr.Zero, IntPtr.Zero, aclBuffer, IntPtr.Zero);
+                    error = metadataOnly ? 0 : SetSecurityInfo(handle, 1, 4, IntPtr.Zero, IntPtr.Zero, aclBuffer, IntPtr.Zero);
                     if (error != 0) throw new Win32Exception((int)error, "Grant sandbox-private ACL");
                 }
                 finally { Marshal.FreeHGlobal(aclBuffer); }
             }
             finally { LocalFree(descriptor); }
-            if (writable) SetLowIntegrity(handle, directory);
+            if (writable && !metadataOnly) SetLowIntegrity(handle, directory);
         }
         finally { CloseHandle(handle); }
         if (directory) foreach (string child in Directory.GetFileSystemEntries(root)) GrantPrivateTree(child, identity, writable);

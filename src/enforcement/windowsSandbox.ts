@@ -56,7 +56,7 @@ export class WindowsSandbox {
   }
 
   public async prepare(stagingRoot: string, originalRoot: string): Promise<SandboxLaunch> {
-    const runtime = await this.prepareNodeRuntime();
+    const runtime = await this.prepareNodeRuntime(await fs.realpath(originalRoot));
     return this.prepareCommand(stagingRoot, originalRoot, windowsSystemExecutable('cmd.exe'), ['/d', '/q'], runtime);
   }
 
@@ -81,10 +81,13 @@ export class WindowsSandbox {
       ReadOnlyRoots: readOnlyRuntime ? [readOnlyRuntime] : [], Executable: executable, Arguments: args,
       WorkingDirectory: staging, Environment: environment,
     });
-    return { executable: await this.buildLauncher(), arguments: ['--config', config], cwd: staging, environment, profilePath: config };
+    // The host launcher must not hold the writable directory as its own cwd;
+    // Windows opens cwd handles without delete sharing. Only the LPAC child
+    // receives the staged working directory from the trusted configuration.
+    return { executable: await this.buildLauncher(), arguments: ['--config', config], cwd: path.dirname(staging), environment, profilePath: config };
   }
 
-  public async prepareNodeRuntime(): Promise<string> {
+  public async prepareNodeRuntime(workspaceIdentity = ''): Promise<string> {
     // Host executables are copied by the trusted parent into a read-only runtime;
     // no executable from agent-writable storage is ever run by the host parent.
     const { stdout } = await execFile(windowsSystemExecutable('where.exe'), ['node.exe'], { timeout: 10_000 }).catch(() => {
@@ -93,7 +96,12 @@ export class WindowsSandbox {
     const candidates = stdout.trim().split(/\r?\n/).filter(Boolean);
     const source = await fs.realpath(candidates[0] ?? '');
     const sourceBytes = await fs.readFile(source);
-    const runtime = path.join(this.controlRoot, 'node-runtimes', createHash('sha256').update(sourceBytes).digest('hex'));
+    const sourceDirectory = path.dirname(source);
+    const npmMetadata = await fs.readFile(path.join(sourceDirectory, 'node_modules', 'npm', 'package.json')).catch(error => {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      return Buffer.alloc(0);
+    });
+    const runtime = path.join(this.controlRoot, 'node-runtimes', createHash('sha256').update(sourceBytes).update(npmMetadata).update(workspaceIdentity.toLowerCase()).digest('hex'));
     try { await fs.access(path.join(runtime, 'node.exe')); return await fs.realpath(runtime); }
     catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
     await fs.mkdir(path.dirname(runtime), { recursive: true });
@@ -101,7 +109,6 @@ export class WindowsSandbox {
     await fs.mkdir(temporary);
     try {
       await fs.writeFile(path.join(temporary, 'node.exe'), sourceBytes, { flag: 'wx' });
-      const sourceDirectory = path.dirname(source);
       const npm = path.join(sourceDirectory, 'node_modules', 'npm');
       try {
         await fs.access(npm);

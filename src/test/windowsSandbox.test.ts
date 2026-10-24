@@ -39,7 +39,7 @@ native('Native Windows LPAC enforcement', function () {
   let nodeRuntime: string;
   const run = async (script: string, args: string[] = []) => {
     const launch = await runtime.prepareCommand(staged, original, path.join(nodeRuntime, 'node.exe'), ['-e', script, ...args], nodeRuntime);
-    return execFile(launch.executable, launch.arguments, { cwd: staged, env: launch.environment, timeout: 45_000, maxBuffer: 1024 * 1024 });
+    return execFile(launch.executable, launch.arguments, { cwd: launch.cwd, env: launch.environment, timeout: 45_000, maxBuffer: 1024 * 1024 });
   };
   beforeEach(async () => {
     root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'guard windows spaces & ')));
