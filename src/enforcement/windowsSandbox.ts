@@ -49,7 +49,15 @@ export class WindowsSandbox {
         try { await fs.lstat(unexpected); throw new Error('A protected probe path was created or renamed.'); }
         catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
       }
-      return { ...base, available: true, reason: 'Native Windows LPAC token and original-write denial verified. Protected AI Terminal only; ordinary AI extensions are outside this boundary. No Docker or WSL required.' };
+      const runtime = await this.prepareNodeRuntime('runtime-verification');
+      const runtimeConfig = await this.writeConfiguration(root, {
+        ProfileName: profileName(this.controlRoot + ':runtime-verification'), WritableRoots: [writable], ReadOnlyRoots: [runtime],
+        Executable: path.join(runtime, 'node.exe'), Arguments: ['-e', `const cp=require('child_process');const child=cp.spawnSync(process.execPath,['-e',"process.stdout.write('PIPE_OK')"],{encoding:'utf8',timeout:5000});if(child.status!==0||child.stdout!=='PIPE_OK')process.exit(81);process.stdout.write('RUNTIME_VERIFIED');`],
+        WorkingDirectory: writable, Environment: windowsEnvironment(writable, writable, runtime),
+      });
+      const runtimeProbe = await execFile(launcher, ['--config', runtimeConfig], { timeout: 15_000, maxBuffer: 128 * 1024 });
+      if (runtimeProbe.stdout !== 'RUNTIME_VERIFIED') throw new Error('Private runtime child-process I/O verification failed.');
+      return { ...base, available: true, reason: 'Native Windows LPAC token, original-write denial and private runtime child I/O verified. Protected AI Terminal only; ordinary AI extensions are outside this boundary. No Docker or WSL required.' };
     } catch (error) {
       return { ...base, available: false, reason: `Windows isolation verification failed; no unconfined fallback: ${error instanceof Error ? error.message : String(error)}` };
     } finally { await fs.rm(probe, { recursive: true, force: true }).catch(() => undefined); }
@@ -88,20 +96,17 @@ export class WindowsSandbox {
   }
 
   public async prepareNodeRuntime(workspaceIdentity = ''): Promise<string> {
-    // Host executables are copied by the trusted parent into a read-only runtime;
-    // no executable from agent-writable storage is ever run by the host parent.
-    const { stdout } = await execFile(windowsSystemExecutable('where.exe'), ['node.exe'], { timeout: 10_000 }).catch(() => {
-      throw new Error('Windows Protected AI Terminal requires Node.js with npm on PATH. Install Node.js LTS and restart VS Code. Docker and WSL are not required.');
-    });
-    const candidates = stdout.trim().split(/\r?\n/).filter(Boolean);
-    const source = await fs.realpath(candidates[0] ?? '');
-    const sourceBytes = await fs.readFile(source);
-    const sourceDirectory = path.dirname(source);
-    const npmMetadata = await fs.readFile(path.join(sourceDirectory, 'node_modules', 'npm', 'package.json')).catch(error => {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-      return Buffer.alloc(0);
-    });
-    const runtime = path.join(this.controlRoot, 'node-runtimes', createHash('sha256').update(sourceBytes).update(npmMetadata).update(workspaceIdentity.toLowerCase()).digest('hex'));
+    // Only the packaged, checksum-verified runtime is trusted. Stock Node has
+    // an AppContainer child-pipe hang; never fall back to it silently.
+    const bundle = path.resolve(__dirname, '..', '..', 'resources', 'windows', 'runtime');
+    let manifest: { architecture: string; nodeSha256: string; npmSha256: string };
+    try { manifest = JSON.parse(await fs.readFile(path.join(bundle, 'runtime.json'), 'utf8')); }
+    catch { throw new Error('This Windows package is missing its compatible private runtime. Install a tested Windows x64 VSIX; Docker and WSL are not required.'); }
+    if (manifest.architecture !== 'x64' || !/^[a-f0-9]{64}$/.test(manifest.nodeSha256) || !/^[a-f0-9]{64}$/.test(manifest.npmSha256)) throw new Error('Invalid private Windows runtime manifest.');
+    const sourceBytes = await fs.readFile(path.join(bundle, 'node.exe'));
+    const npmArchive = await fs.readFile(path.join(bundle, 'npm.tar'));
+    if (sha256(sourceBytes) !== manifest.nodeSha256 || sha256(npmArchive) !== manifest.npmSha256) throw new Error('Private Windows runtime checksum mismatch. Reinstall a tested package.');
+    const runtime = path.join(this.controlRoot, 'node-runtimes', createHash('sha256').update(sourceBytes).update(manifest.npmSha256).update(workspaceIdentity.toLowerCase()).digest('hex'));
     try { await fs.access(path.join(runtime, 'node.exe')); return await fs.realpath(runtime); }
     catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
     await fs.mkdir(path.dirname(runtime), { recursive: true });
@@ -109,12 +114,10 @@ export class WindowsSandbox {
     await fs.mkdir(temporary);
     try {
       await fs.writeFile(path.join(temporary, 'node.exe'), sourceBytes, { flag: 'wx' });
-      const npm = path.join(sourceDirectory, 'node_modules', 'npm');
-      try {
-        await fs.access(npm);
-        await fs.cp(npm, path.join(temporary, 'node_modules', 'npm'), { recursive: true, dereference: false, errorOnExist: true });
-        for (const name of ['npm.cmd', 'npx.cmd']) await fs.copyFile(path.join(sourceDirectory, name), path.join(temporary, name));
-      } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+      const modules = path.join(temporary, 'node_modules');
+      await fs.mkdir(modules);
+      await execFile(path.win32.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe'), ['-xf', path.join(bundle, 'npm.tar'), '-C', modules], { timeout: 30_000 });
+      for (const name of ['npm.cmd', 'npx.cmd', 'LICENSE']) await fs.copyFile(path.join(bundle, name), path.join(temporary, name));
       try { await fs.rename(temporary, runtime); }
       catch (error) { if (!['EEXIST', 'ENOTEMPTY', 'EPERM'].includes(String((error as NodeJS.ErrnoException).code))) throw error; await fs.access(path.join(runtime, 'node.exe')); }
     } finally { await fs.rm(temporary, { recursive: true, force: true }); }
@@ -175,3 +178,5 @@ export function windowsEnvironment(home: string, temporary: string, runtime?: st
 function contains(parent: string, child: string): boolean { const relative = path.relative(parent, child); return !path.isAbsolute(relative) && relative !== '..' && !relative.startsWith(`..${path.sep}`); }
 function digest(input: string): string { return createHash('sha256').update(input.toLowerCase()).digest('hex').slice(0, 32); }
 function profileName(input: string): string { return `AIFileGuard.${digest(input)}`; }
+
+function sha256(input: Buffer): string { return createHash('sha256').update(input).digest('hex'); }

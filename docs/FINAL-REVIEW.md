@@ -20,8 +20,8 @@ Status: NOT APPROVED for Marketplace publication until the Windows native and in
 ## Evidence and gates
 
 - TypeScript and unit/service tests pass locally; native tests skipped on another OS are not evidence.
-- macOS native enforcement passes locally. Installed VSIX tests passed before adding the Windows backend; the final combined artifact must be retested.
-- Windows LPAC tests are authored but have not yet run on a Windows host. They must compile the native helper and prove token state, write/create/delete/rename/replacement denial, child confinement, junction/hard-link rejection, local control-service denial and live locked-folder application before/after unlock.
+- macOS native enforcement and all 17 installed-VSIX tests pass for the combined candidate. TypeScript checks and 50 local unit/service cases pass. Production-dependency audit reports zero vulnerabilities.
+- Windows native tests have run on hosted Windows CI. Live locked-folder application/unlock, loopback denial, junction/hard-link rejection and unchanged original ACLs passed. Child-process I/O and the named-pipe control fixture still require correction/verification; the complete Windows native and installed-VSIX gates have not passed.
 - Actual signed-in Codex/Copilot/Claude CLI tasks require provider account acceptance; no model task has been performed by this release preparation.
 - Audit the final VSIX metadata, native resource inclusion, privacy/security text, and absence of local credentials/policy before upload.
 
