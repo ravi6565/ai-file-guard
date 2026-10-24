@@ -1,0 +1,112 @@
+{
+  "name": "ai-file-guard",
+  "displayName": "AI File Guard",
+  "description": "OS-protected AI terminals and local file/folder locks for managed agents.",
+  "version": "0.10.1",
+  "publisher": "ai-file-guard",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ravi6565/ai-file-guard.git"
+  },
+  "homepage": "https://github.com/ravi6565/ai-file-guard#readme",
+  "bugs": {
+    "url": "https://github.com/ravi6565/ai-file-guard/issues"
+  },
+  "license": "MIT",
+  "extensionKind": ["workspace"],
+  "capabilities": {
+    "virtualWorkspaces": { "supported": false, "description": "Requires canonical local filesystem paths." },
+    "untrustedWorkspaces": { "supported": false }
+  },
+  "engines": { "vscode": "^1.95.0" },
+  "categories": ["Other"],
+  "keywords": ["ai", "security", "codex", "copilot", "file protection"],
+  "icon": "resources/icon.png",
+  "activationEvents": ["onStartupFinished"],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      { "command": "aiFileGuard.lock", "title": "Lock for AI", "icon": "$(lock)" },
+      { "command": "aiFileGuard.startManagedAgent", "title": "AI File Guard: Open Protected AI Terminal", "icon": "$(shield)" },
+      { "command": "aiFileGuard.verifySandbox", "title": "AI File Guard: Verify Managed Sandbox" },
+      { "command": "aiFileGuard.previewAgentChanges", "title": "AI File Guard: Preview Agent Changes" },
+      { "command": "aiFileGuard.addReviewPolicy", "title": "AI File Guard: Add Review Broker Policy (Does Not Block AI)" },
+      { "command": "aiFileGuard.unlock", "title": "Unlock for AI", "icon": "$(unlock)" },
+      { "command": "aiFileGuard.refresh", "title": "Refresh Managed AI Locks", "icon": "$(refresh)" },
+      { "command": "aiFileGuard.showStatus", "title": "AI File Guard: Show Status" },
+      { "command": "aiFileGuard.syncInstructions", "title": "AI File Guard: Sync AI Instructions" },
+      { "command": "aiFileGuard.openLocalPolicy", "title": "AI File Guard: Open Local Lock Policy" },
+      { "command": "aiFileGuard.createReviewWorkspace", "title": "AI File Guard: Create Brokered Agent Workspace" },
+      { "command": "aiFileGuard.applyReviewWorkspace", "title": "AI File Guard: Review and Apply Agent Changes" },
+      { "command": "aiFileGuard.openAuditLog", "title": "AI File Guard: Open Audit Log" },
+      { "command": "aiFileGuard.repairHardLocks", "title": "AI File Guard: Restore Legacy File Permissions" }
+    ],
+    "menus": {
+      "explorer/context": [
+        { "command": "aiFileGuard.lock", "when": "resourceScheme == file", "group": "aiFileGuard@1" },
+        { "command": "aiFileGuard.unlock", "when": "resourceScheme == file", "group": "aiFileGuard@2" }
+      ],
+      "view/item/context": [
+        { "command": "aiFileGuard.unlock", "when": "view == aiFileGuard.protectedFiles && viewItem == savedReviewPolicy", "group": "inline" }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [{ "id": "aiFileGuard", "title": "AI File Guard", "icon": "media/shield.svg" }]
+    },
+    "views": {
+      "aiFileGuard": [{ "id": "aiFileGuard.protectedFiles", "name": "Managed AI Locks" }]
+    },
+    "configuration": {
+      "title": "AI File Guard",
+      "properties": {
+        "aiFileGuard.protectionMode": {
+          "type": "string",
+          "enum": ["review", "enforced"],
+          "enumDescriptions": [
+            "Manual edits allowed. The review broker rejects changes to locked paths. External AI sessions are not confined.",
+            "Verify the OS sandbox before accepting a managed-agent lock. AI tools must run through the Protected AI Terminal."
+          ],
+          "default": "enforced",
+          "scope": "machine",
+          "description": "Protection is scoped to agents launched in the Protected AI Terminal. Lock always requires verified sandbox support. Ordinary external AI extensions and terminal processes are not intercepted."
+        },
+        "aiFileGuard.adapters": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["codex", "copilot", "claude", "generic"] },
+          "default": ["codex", "copilot", "claude", "generic"],
+          "uniqueItems": true,
+          "scope": "machine",
+          "description": "Automatically synchronize managed sections in AGENTS.md, .github/copilot-instructions.md, CLAUDE.md, and .ai-file-guard/INSTRUCTIONS.md on lock/unlock and reload. Existing project instructions are preserved. These repository files can be committed; instructions are cooperative and do not enforce a sandbox."
+        },
+        "aiFileGuard.monitoring.enabled": {
+          "type": "boolean",
+          "default": false,
+          "scope": "machine",
+          "description": "Audit observed workspace file changes without attributing them to AI or interrupting manual edits. Reload VS Code after changing this setting."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p .",
+    "watch": "tsc -w -p .",
+    "test": "npm run test:unit",
+    "test:unit": "npm run compile && mocha --require source-map-support/register \"dist/test/*.test.js\"",
+    "test:integration": "npm run compile && node dist/test/runIntegration.js",
+    "test:sandbox": "npm run compile && AI_FILE_GUARD_NATIVE_TESTS=1 mocha --require source-map-support/register dist/test/sandbox.test.js",
+    "lint": "tsc -p . --noEmit",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^22.10.2",
+    "@types/vscode": "^1.95.0",
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^3.2.1",
+    "eslint": "^9.17.0",
+    "mocha": "^11.0.1",
+    "source-map-support": "^0.5.21",
+    "typescript": "^5.7.2"
+  }
+}

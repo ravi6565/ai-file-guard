@@ -1,0 +1,50 @@
+# Dependencies and generated build/test output
+node_modules/
+dist/
+out/
+coverage/
+.nyc_output/
+*.tsbuildinfo
+
+# Packaged extensions and downloaded VS Code test installations
+*.vsix
+.vscode-test/
+.vscode-test-web/
+
+# Machine-local AI File Guard policy and generated agent instructions
+.ai-file-guard/
+AGENTS.md
+AGENTS.override.md
+CLAUDE.md
+CLAUDE.local.md
+.github/copilot-instructions.md
+
+# Local editor, agent, and cloud configuration
+.vscode/
+.idea/
+.agents/
+.codex/
+.claude/
+.aws/
+
+# Environment files and private credentials (sanitized examples may be shared)
+.env
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+
+# Logs, temporary files, and OS metadata
+*.log
+*.tmp
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+Desktop.ini
