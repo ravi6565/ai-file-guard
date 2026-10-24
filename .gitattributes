@@ -1,0 +1,2 @@
+# Keep the upstream source patch byte-identical on Windows checkout.
+*.patch text eol=lf
