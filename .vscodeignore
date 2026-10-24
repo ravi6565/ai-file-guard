@@ -9,8 +9,15 @@ dist/test/**
 .vscode-test/**
 *.vsix
 AGENTS.md
+AGENTS.override.md
 CLAUDE.md
+CLAUDE.local.md
 .ai-file-guard/**
 .agents/**
 .codex/**
+.claude/**
 .aws/**
+**/.env
+**/.env.*
+**/*.key
+**/*.pem

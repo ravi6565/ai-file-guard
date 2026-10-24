@@ -83,7 +83,7 @@ native('Native Windows LPAC enforcement', function () {
 
   it('denies host loopback control services without adding network exemptions', async () => {
     let connected = false;
-    const server = createServer(socket => { connected = true; socket.end('host control'); });
+    const server = createServer(socket => { socket.on('error', () => undefined); connected = true; socket.end('host control'); });
     await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
     try {
       const address = server.address(); assert.ok(address && typeof address !== 'string');
@@ -96,7 +96,7 @@ native('Native Windows LPAC enforcement', function () {
   it('cannot connect to a host named-pipe control endpoint', async () => {
     const pipe = `\\\\.\\pipe\\guard-${randomUUID()}`;
     let connected = false;
-    const server = createServer(socket => { connected = true; socket.end('host control'); });
+    const server = createServer(socket => { socket.on('error', () => undefined); connected = true; socket.end('host control'); });
     await new Promise<void>(resolve => server.listen(pipe, resolve));
     try {
       await new Promise<void>((resolve, reject) => { const client = connect(pipe); client.on('connect', () => { client.destroy(); resolve(); }); client.on('error', reject); });

@@ -12,6 +12,8 @@ using System.Security.Principal;
 using System.Text;
 using System.Web.Script.Serialization;
 
+[assembly: System.Runtime.Versioning.TargetFramework(".NETFramework,Version=v4.8")]
+
 public static class GuardLauncher
 {
     // Windows SDK WinBase.h: input attributes 9, 15 and 2 respectively.
@@ -33,6 +35,8 @@ public static class GuardLauncher
     {
         try
         {
+            AppContext.SetSwitch("Switch.System.IO.UseLegacyPathHandling", false);
+            AppContext.SetSwitch("Switch.System.IO.BlockLongPaths", false);
             if (args.Length > 0 && args[0] == "--probe-child") return Probe(args);
             if (args.Length != 2 || args[0] != "--config") throw new ArgumentException("Expected --config <trusted launch file>.");
             Configuration config = new JavaScriptSerializer().Deserialize<Configuration>(File.ReadAllText(args[1]));
@@ -47,7 +51,11 @@ public static class GuardLauncher
 
     private static void Check(bool success, string operation)
     {
-        if (!success) throw new Win32Exception(Marshal.GetLastWin32Error(), operation);
+        if (!success)
+        {
+            int code = Marshal.GetLastWin32Error();
+            throw new Win32Exception(code, operation + " (Win32 " + code + ": " + new Win32Exception(code).Message + ")");
+        }
     }
 
     private static int Launch(Configuration config)
@@ -129,6 +137,9 @@ public static class GuardLauncher
             finally { Marshal.FreeHGlobal(limitsBuffer); }
             // The process is never resumed before assignment to its job succeeds.
             Check(CreateProcess(config.Executable, command, IntPtr.Zero, IntPtr.Zero, true, 0x80000 | 0x400 | 4, environment, config.WorkingDirectory, ref startup, out process), "Create LPAC process");
+            // Query the exact suspended child's token from the trusted parent,
+            // before allowing any agent instruction to execute.
+            VerifyToken(process.hProcess);
             Check(AssignProcessToJobObject(job, process.hProcess), "Assign process job");
             Check(ResumeThread(process.hThread) != UInt32.MaxValue, "Resume isolated process");
             resumed = true;
@@ -264,17 +275,6 @@ public static class GuardLauncher
     private static int Probe(string[] args)
     {
         if (args.Length != 4) throw new ArgumentException("Invalid probe arguments.");
-        IntPtr token;
-        Check(OpenProcessToken(GetCurrentProcess(), 8, out token), "Query sandbox token");
-        try
-        {
-            int value, size;
-            Check(GetTokenInformation(token, 29, out value, 4, out size), "Query AppContainer state");
-            if (value != 1) throw new InvalidOperationException("Probe is not an AppContainer.");
-            Check(GetTokenInformation(token, 46, out value, 4, out size), "Query LPAC state");
-            if (value != 1) throw new InvalidOperationException("Probe is not less-privileged.");
-        }
-        finally { CloseHandle(token); }
         string original = args[1], writable = args[2], policy = args[3];
         int denied = 0;
         Action<Action> reject = delegate(Action action)
@@ -291,6 +291,21 @@ public static class GuardLauncher
         File.WriteAllText(Path.Combine(writable, "allowed"), "yes");
         Console.Write("GUARD_VERIFIED:" + denied);
         return 0;
+    }
+
+    private static void VerifyToken(IntPtr process)
+    {
+        IntPtr token;
+        Check(OpenProcessToken(process, 8, out token), "Query sandbox token");
+        try
+        {
+            int value, size;
+            Check(GetTokenInformation(token, 29, out value, 4, out size), "Query AppContainer state");
+            if (value != 1) throw new InvalidOperationException("Probe is not an AppContainer.");
+            Check(GetTokenInformation(token, 46, out value, 4, out size), "Query LPAC state");
+            if (value != 1) throw new InvalidOperationException("Probe is not less-privileged.");
+        }
+        finally { CloseHandle(token); }
     }
 
     [StructLayout(LayoutKind.Sequential)] private struct SECURITY_CAPABILITIES { public IntPtr AppContainerSid, Capabilities; public uint CapabilityCount, Reserved; }
