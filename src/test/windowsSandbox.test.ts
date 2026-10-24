@@ -56,11 +56,11 @@ native('Native Windows LPAC enforcement', function () {
     assert.equal(capability.backend, 'windows-lpac');
     const file = path.join(original, 'locked.txt'); await fs.writeFile(file, 'original');
     const result = await run(`const fs=require('fs'),p=require('path'),cp=require('child_process');const [file,stage]=process.argv.slice(1);let count=0;
-      const denied=fn=>{try{fn()}catch(e){if(['EPERM','EACCES'].includes(e.code)){count++;return}throw e}throw Error('escaped')};
+      const denied=fn=>{try{fn()}catch(e){if(['EPERM','EACCES','ENOENT'].includes(e.code)){count++;return}throw e}throw Error('escaped')};
       denied(()=>fs.writeFileSync(file,'bad'));denied(()=>fs.writeFileSync(p.join(p.dirname(file),'new.txt'),'bad'));
       denied(()=>fs.unlinkSync(file));denied(()=>fs.renameSync(file,file+'.moved'));denied(()=>fs.mkdirSync(file+'.folder'));
       fs.writeFileSync(p.join(stage,'temp'),'bad');denied(()=>fs.renameSync(p.join(stage,'temp'),file));
-      const child=cp.spawnSync(process.execPath,['-e',"try{require('fs').writeFileSync(process.argv[1],'bad');process.exit(51)}catch(e){if(!['EPERM','EACCES'].includes(e.code))throw e;process.stdout.write('CHILD_DENIED')}",file],{encoding:'utf8'});
+      const child=cp.spawnSync(process.execPath,['-e',"try{require('fs').writeFileSync(process.argv[1],'bad');process.exit(51)}catch(e){if(!['EPERM','EACCES','ENOENT'].includes(e.code))throw e;process.stdout.write('CHILD_DENIED')}",file],{encoding:'utf8'});
       if(child.status!==0||child.stdout!=='CHILD_DENIED')throw Error('child denial not verified:'+child.stderr);
       fs.writeFileSync(p.join(stage,'allowed'),'yes');process.stdout.write('CHECKED:'+count);`, [file, staged]);
     assert.match(result.stdout, /CHECKED:6/);

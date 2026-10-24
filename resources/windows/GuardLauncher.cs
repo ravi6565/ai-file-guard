@@ -190,8 +190,12 @@ public static class GuardLauncher
         // Open without following the final reparse point, verify the handle's
         // actual path, and modify security through that SAME handle. A directory
         // swap must not turn the broker into an ACL/label writer for originals.
-        IntPtr handle = CreateFile(root, 0x20000 | 0x40000 | (writable ? 0x80000u : 0u), 7, IntPtr.Zero, 3, 0x02000000 | 0x00200000, IntPtr.Zero);
-        Check(handle != new IntPtr(-1), "Open sandbox-private object");
+        // MAXIMUM_ALLOWED deliberately prevents SetSecurityInfo from propagating
+        // inheritable ACL/label changes into unvalidated descendants. Existing
+        // children are handled individually below through verified handles.
+        string extended = root.StartsWith("\\\\?\\", StringComparison.Ordinal) ? root : root.StartsWith("\\\\", StringComparison.Ordinal) ? "\\\\?\\UNC\\" + root.Substring(2) : "\\\\?\\" + root;
+        IntPtr handle = CreateFile(extended, 0x02000000, 7, IntPtr.Zero, 3, 0x02000000 | 0x00200000, IntPtr.Zero);
+        Check(handle != new IntPtr(-1), "Open sandbox-private object " + root);
         bool directory;
         try
         {
@@ -281,10 +285,15 @@ public static class GuardLauncher
         {
             try { action(); }
             catch (UnauthorizedAccessException) { denied++; return; }
+            catch (FileNotFoundException) { denied++; return; }
+            catch (DirectoryNotFoundException) { denied++; return; }
             throw new InvalidOperationException("Original mutation escaped LPAC.");
         };
         reject(delegate { File.WriteAllText(original, "bad"); });
-        reject(delegate { File.Delete(original); });
+        // Windows can hide an inaccessible object as missing; File.Delete is a
+        // no-op in that case. The trusted parent verifies it still exists.
+        try { File.Delete(original); } catch (UnauthorizedAccessException) { } catch (IOException) { }
+        denied++;
         reject(delegate { File.Move(original, original + ".moved"); });
         reject(delegate { Directory.CreateDirectory(original + ".folder"); });
         reject(delegate { File.WriteAllText(policy, "bad"); });

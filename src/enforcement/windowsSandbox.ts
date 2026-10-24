@@ -45,6 +45,10 @@ export class WindowsSandbox {
       if (!stdout.includes('GUARD_VERIFIED:5') || await fs.readFile(original, 'utf8') !== 'original' || await fs.readFile(policy, 'utf8') !== 'policy' || await fs.readFile(path.join(writable, 'allowed'), 'utf8') !== 'yes') {
         throw new Error('Native token/write-denial self-test did not pass.');
       }
+      for (const unexpected of [original + '.moved', original + '.folder']) {
+        try { await fs.lstat(unexpected); throw new Error('A protected probe path was created or renamed.'); }
+        catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+      }
       return { ...base, available: true, reason: 'Native Windows LPAC token and original-write denial verified. Protected AI Terminal only; ordinary AI extensions are outside this boundary. No Docker or WSL required.' };
     } catch (error) {
       return { ...base, available: false, reason: `Windows isolation verification failed; no unconfined fallback: ${error instanceof Error ? error.message : String(error)}` };
