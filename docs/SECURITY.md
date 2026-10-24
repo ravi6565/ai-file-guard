@@ -10,6 +10,8 @@ The extension is not a universal AI-origin detector. The [VS Code extension host
 
 ## Runtime controls and limitations
 
+The Windows candidate uses LPAC with ALL APPLICATION PACKAGES opted out, explicit SID grants only on private copy/home/temp and a read-only runtime, an explicit inherited-standard-handle list, and a kill-on-close job assigned before the process resumes. ACL and integrity-label changes use verified file handles and reject reparse points/hard links; original-project ACLs are not changed. Windows uses internet-client and registry-read capabilities, with no LAN/server capability or loopback exemption. Private AppContainer profile storage may persist. This backend requires real Windows token, mutation, child-process, named-pipe, loopback, terminal and provider acceptance before publication; macOS results do not establish Windows support.
+
 A real filesystem denial probe is required before capability is available. Each generated profile is validated before terminal launch. No unconfined fallback exists.
 
 macOS profiles deny by default. File reads are allowed; writes are limited to explicit writable roots. Forked/executed tools retain the OS restriction. Editor IPC environment, arbitrary Mach services, general UNIX sockets, incoming listeners and Apple Events are not granted. DNS uses its specific system service. The only TCP endpoint permitted to the child is its exact IPv4 HTTPS proxy endpoint; general IPv4/IPv6 control-service access is denied.

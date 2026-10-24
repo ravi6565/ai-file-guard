@@ -1,16 +1,21 @@
 {
   "name": "ai-file-guard",
   "displayName": "AI File Guard",
-  "description": "OS-protected AI terminals and local file/folder locks for managed agents.",
-  "version": "0.10.1",
-  "publisher": "ai-file-guard",
+  "description": "Preview: native protected AI terminals, local file/folder locks, and synchronized agent instructions.",
+  "version": "0.11.0",
+  "publisher": "ravikiranv",
+  "preview": true,
+  "author": {
+    "name": "ravikiranv",
+    "email": "ravikiranv8919@gmail.com"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/ravi6565/ai-file-guard.git"
   },
-  "homepage": "https://github.com/ravi6565/ai-file-guard#readme",
+  "homepage": "https://marketplace.visualstudio.com/items?itemName=ravikiranv.ai-file-guard",
   "bugs": {
-    "url": "https://github.com/ravi6565/ai-file-guard/issues"
+    "email": "ravikiranv8919@gmail.com"
   },
   "license": "MIT",
   "extensionKind": ["workspace"],
@@ -94,9 +99,11 @@
     "test": "npm run test:unit",
     "test:unit": "npm run compile && mocha --require source-map-support/register \"dist/test/*.test.js\"",
     "test:integration": "npm run compile && node dist/test/runIntegration.js",
-    "test:sandbox": "npm run compile && AI_FILE_GUARD_NATIVE_TESTS=1 mocha --require source-map-support/register dist/test/sandbox.test.js",
+    "test:vsix": "npm run compile && node dist/test/runIntegration.js --vsix",
+    "test:sandbox": "npm run compile && node dist/test/runNative.js",
     "lint": "tsc -p . --noEmit",
-    "package": "vsce package"
+    "package": "vsce package --pre-release",
+    "package:preview": "vsce package --pre-release"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",

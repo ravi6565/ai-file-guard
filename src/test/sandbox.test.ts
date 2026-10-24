@@ -26,7 +26,7 @@ describe('Managed sandbox profile', () => {
     assert.equal(env.SSH_AUTH_SOCK, undefined);
   });
   it('refuses unsupported platforms without launching an agent', async () => {
-    const result = await new ManagedSandbox('/unused', 'win32').verify();
+    const result = await new ManagedSandbox('/unused', 'linux').verify();
     assert.equal(result.available, false);
   });
 });

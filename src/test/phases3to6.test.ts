@@ -94,6 +94,19 @@ describe('Phases 3-6 services', () => {
     assert.equal(result.applied.length, 0); assert.match(result.rejected[0].reason, /policy/);
   });
 
+  it('broker rejects Codex overrides and differently cased managed instruction filenames', async () => {
+    const workspace = path.join(temporary, 'workspace'); await fs.mkdir(workspace);
+    await fs.writeFile(path.join(workspace, 'AGENTS.override.md'), 'trusted');
+    await fs.writeFile(path.join(workspace, 'agents.md'), 'trusted');
+    const session = await new IsolationManager(path.join(temporary, 'sessions')).create(workspace);
+    await fs.writeFile(path.join(session.stagingRoot, 'AGENTS.override.md'), 'agent');
+    await fs.writeFile(path.join(session.stagingRoot, 'agents.md'), 'agent');
+    const locks = new LockManager(new ManifestStore(new MemoryStore()), new PathResolver());
+    const result = await new ChangeBroker(locks, new AuditLogger(path.join(temporary, 'audit.jsonl'))).apply(session);
+    assert.equal(result.applied.length, 0); assert.equal(result.rejected.length, 2);
+    for (const rejected of result.rejected) assert.match(rejected.reason, /policy/);
+  });
+
   it('hard locks and restores original filesystem write permissions', async () => {
     const root = path.join(temporary, 'locked'); await fs.mkdir(root);
     const file = path.join(root, 'stable.ts'); await fs.writeFile(file, 'stable'); await fs.chmod(file, 0o640); await fs.chmod(root, 0o750);

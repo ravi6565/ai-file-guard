@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { runTests } from '@vscode/test-electron';
+import { downloadAndUnzipVSCode, resolveCliArgsFromVSCodeExecutablePath, runTests } from '@vscode/test-electron';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import { execFile } from 'node:child_process';
@@ -29,10 +29,34 @@ async function main(): Promise<void> {
     await fs.mkdir(path.join(workspace, 'nested-repo', 'docs'), { recursive: true });
     await fs.writeFile(path.join(workspace, 'nested-repo', 'docs', 'child.txt'), 'original child');
     process.env.AI_FILE_GUARD_TEST_WORKSPACE = workspace;
+    const vsixIndex = process.argv.indexOf('--vsix');
+    let vscodeExecutablePath: string | undefined;
+    let developmentPath = path.resolve(__dirname, '../..');
+    if (vsixIndex >= 0) {
+      const candidate = process.argv[vsixIndex + 1];
+      if (!candidate) throw new Error('Pass the candidate VSIX path after --vsix.');
+      const vsix = path.resolve(candidate);
+      await fs.access(vsix);
+      vscodeExecutablePath = await downloadAndUnzipVSCode();
+      const [cli, ...cliArgs] = resolveCliArgsFromVSCodeExecutablePath(vscodeExecutablePath);
+      const installed = await execFileAsync(cli, [...cliArgs, '--install-extension', vsix, '--force', '--user-data-dir', path.join(testRoot, 'profile'), '--extensions-dir', path.join(testRoot, 'extensions')]);
+      console.log(installed.stdout.trim());
+      const installedDirectories = await fs.readdir(path.join(testRoot, 'extensions'), { withFileTypes: true });
+      let installedPath: string | undefined;
+      for (const directory of installedDirectories.filter(directory => directory.isDirectory())) {
+        const candidatePath = path.join(testRoot, 'extensions', directory.name);
+        const packageJson = await fs.readFile(path.join(candidatePath, 'package.json'), 'utf8').catch(() => '{}');
+        const metadata = JSON.parse(packageJson) as { publisher?: string; name?: string };
+        if (metadata.publisher === 'ravikiranv' && metadata.name === 'ai-file-guard') installedPath = candidatePath;
+      }
+      if (!installedPath) throw new Error('The installed preview extension could not be found in the isolated profile.');
+      developmentPath = installedPath;
+    }
     await runTests({
-      extensionDevelopmentPath: path.resolve(__dirname, '../..'),
+      vscodeExecutablePath,
+      extensionDevelopmentPath: developmentPath,
       extensionTestsPath: path.resolve(__dirname, 'integration', 'index'),
-      launchArgs: [workspace, '--disable-extensions', '--user-data-dir', path.join(testRoot, 'profile'), '--extensions-dir', path.join(testRoot, 'extensions'), '--skip-welcome', '--skip-release-notes'],
+      launchArgs: [workspace, ...(vsixIndex >= 0 ? [] : ['--disable-extensions']), '--user-data-dir', path.join(testRoot, 'profile'), '--extensions-dir', path.join(testRoot, 'extensions'), '--skip-welcome', '--skip-release-notes'],
     });
   } catch (error) {
     console.error('VS Code integration tests failed', error);

@@ -4,6 +4,7 @@ import { promises as fs } from 'node:fs';
 import { LockManager } from './core/lockManager';
 import { ManifestStore } from './core/manifestStore';
 import { LocalManifestStore } from './core/localManifestStore';
+import { initializePublisherPolicy } from './core/publisherPolicyMigration';
 import { PathResolver } from './core/pathResolver';
 import { ProtectionDecorations } from './ui/protectionDecorations';
 import { ProtectedFilesTree } from './ui/protectedFilesTree';
@@ -29,6 +30,10 @@ export async function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(output);
   const policy = new LocalManifestStore(path.join(storageRoot, 'local-locks.json'));
   await policy.refresh();
+  if (context.extension.id === 'ravikiranv.ai-file-guard') {
+    const imported = await initializePublisherPolicy(policy, path.join(path.dirname(storageRoot), 'ai-file-guard.ai-file-guard', 'local-locks.json'));
+    if (imported) output.appendLine(`Imported ${imported} local lock(s) from the previous publisher. Disable the old extension and start new protected terminals; review sessions and agent credentials are not copied.`);
+  }
   // Import this workspace once; never re-import locks that the user later removes.
   if (!context.workspaceState.get('aiFileGuard.localPolicyMigrated.v1', false)) {
     const previous = new ManifestStore(context.workspaceState).load();
@@ -304,7 +309,9 @@ export async function activate(context: vscode.ExtensionContext) {
         });
         managedTerminals.add(terminal);
         terminal.show();
-        terminal.sendText('printf "\\nAI File Guard: run your AI CLI here. Originals are OS read-only to this process. Apply unlocked changes from the original VS Code window.\\n"', true);
+        terminal.sendText(process.platform === 'win32'
+          ? 'echo AI File Guard: run your AI CLI here. Apply unlocked changes from the original VS Code window.'
+          : 'printf "\\nAI File Guard: run your AI CLI here. Originals are OS read-only to this process. Apply unlocked changes from the original VS Code window.\\n"', true);
         await record('managed-session-start', session.stagingRoot, 'sandbox-verified');
         void vscode.window.showInformationMessage('Protected AI Terminal opened. Run your agent CLI there. Locked originals cannot be changed through the apply service. Ordinary Copilot/Codex/Claude extensions in this window are outside this runtime.');
         return { ok: true as const, enforced: true as const, scope: 'managed-agents-only' as const, session };

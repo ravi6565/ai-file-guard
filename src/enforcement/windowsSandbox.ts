@@ -1,0 +1,166 @@
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
+import { createHash, randomUUID } from 'node:crypto';
+import { execFile as execFileCallback } from 'node:child_process';
+import { promisify } from 'node:util';
+import type { SandboxCapability, SandboxLaunch } from './managedSandbox';
+
+const execFile = promisify(execFileCallback);
+export interface WindowsLaunchConfiguration {
+  ProfileName: string;
+  WritableRoots: string[];
+  ReadOnlyRoots: string[];
+  Executable: string;
+  Arguments: string[];
+  WorkingDirectory: string;
+  Environment: Record<string, string>;
+}
+
+export class WindowsSandbox {
+  private launcher?: Promise<string>;
+  public constructor(private readonly controlRoot: string) {}
+
+  public async verify(): Promise<SandboxCapability> {
+    const base = { scope: 'managed-agents-only' as const, backend: 'windows-lpac' as const };
+    const probe = path.join(this.controlRoot, 'probes', randomUUID());
+    try {
+      if (process.platform !== 'win32') throw new Error('A native Windows host is required.');
+      const launcher = await this.buildLauncher();
+      await fs.mkdir(probe, { recursive: true });
+      const root = await fs.realpath(probe);
+      const writable = path.join(root, 'writable');
+      const tools = path.join(root, 'tools');
+      await fs.mkdir(writable); await fs.mkdir(tools);
+      const original = path.join(root, 'original.txt');
+      const policy = path.join(root, 'policy.json');
+      await fs.writeFile(original, 'original'); await fs.writeFile(policy, 'policy');
+      const child = path.join(tools, 'probe.exe');
+      await fs.copyFile(launcher, child);
+      const config = await this.writeConfiguration(root, {
+        ProfileName: profileName(root), WritableRoots: [writable], ReadOnlyRoots: [tools],
+        Executable: child, Arguments: ['--probe-child', original, writable, policy], WorkingDirectory: writable,
+        Environment: windowsEnvironment(writable, writable),
+      });
+      const { stdout } = await execFile(launcher, ['--config', config], { timeout: 30_000, maxBuffer: 128 * 1024 });
+      if (!stdout.includes('GUARD_VERIFIED:5') || await fs.readFile(original, 'utf8') !== 'original' || await fs.readFile(policy, 'utf8') !== 'policy' || await fs.readFile(path.join(writable, 'allowed'), 'utf8') !== 'yes') {
+        throw new Error('Native token/write-denial self-test did not pass.');
+      }
+      return { ...base, available: true, reason: 'Native Windows LPAC token and original-write denial verified. Protected AI Terminal only; ordinary AI extensions are outside this boundary. No Docker or WSL required.' };
+    } catch (error) {
+      return { ...base, available: false, reason: `Windows isolation verification failed; no unconfined fallback: ${error instanceof Error ? error.message : String(error)}` };
+    } finally { await fs.rm(probe, { recursive: true, force: true }).catch(() => undefined); }
+  }
+
+  public async prepare(stagingRoot: string, originalRoot: string): Promise<SandboxLaunch> {
+    const runtime = await this.prepareNodeRuntime();
+    return this.prepareCommand(stagingRoot, originalRoot, windowsSystemExecutable('cmd.exe'), ['/d', '/q'], runtime);
+  }
+
+  /** Exposed for native acceptance tests; every command uses the same launcher. */
+  public async prepareCommand(stagingRoot: string, originalRoot: string, executable: string, args: string[], readOnlyRuntime?: string): Promise<SandboxLaunch> {
+    await fs.mkdir(this.controlRoot, { recursive: true });
+    const original = await fs.realpath(originalRoot);
+    const staging = await fs.realpath(stagingRoot);
+    const control = await fs.realpath(this.controlRoot);
+    if (contains(original, staging) || contains(staging, original) || contains(original, control) || contains(control, original)) throw new Error('Original project overlaps sandbox storage.');
+    const home = path.join(control, 'agent-homes', digest(original));
+    const temporary = path.join(path.dirname(staging), 'agent-tmp');
+    await fs.mkdir(home, { recursive: true }); await fs.mkdir(temporary, { recursive: true });
+    const canonicalHome = await fs.realpath(home);
+    const canonicalTemporary = await fs.realpath(temporary);
+    if (!contains(control, canonicalHome) || canonicalHome.toLowerCase() !== home.toLowerCase() || canonicalTemporary.toLowerCase() !== temporary.toLowerCase() || [staging, canonicalHome, canonicalTemporary].some(writable => contains(original, writable) || contains(writable, original))) {
+      throw new Error('Unsafe sandbox writable path or reparse point.');
+    }
+    const environment = windowsEnvironment(canonicalHome, canonicalTemporary, readOnlyRuntime);
+    const config = await this.writeConfiguration(path.dirname(staging), {
+      ProfileName: profileName(original), WritableRoots: [staging, canonicalHome, canonicalTemporary],
+      ReadOnlyRoots: readOnlyRuntime ? [readOnlyRuntime] : [], Executable: executable, Arguments: args,
+      WorkingDirectory: staging, Environment: environment,
+    });
+    return { executable: await this.buildLauncher(), arguments: ['--config', config], cwd: staging, environment, profilePath: config };
+  }
+
+  public async prepareNodeRuntime(): Promise<string> {
+    // Host executables are copied by the trusted parent into a read-only runtime;
+    // no executable from agent-writable storage is ever run by the host parent.
+    const { stdout } = await execFile(windowsSystemExecutable('where.exe'), ['node.exe'], { timeout: 10_000 }).catch(() => {
+      throw new Error('Windows Protected AI Terminal requires Node.js with npm on PATH. Install Node.js LTS and restart VS Code. Docker and WSL are not required.');
+    });
+    const candidates = stdout.trim().split(/\r?\n/).filter(Boolean);
+    const source = await fs.realpath(candidates[0] ?? '');
+    const sourceBytes = await fs.readFile(source);
+    const runtime = path.join(this.controlRoot, 'node-runtimes', createHash('sha256').update(sourceBytes).digest('hex'));
+    try { await fs.access(path.join(runtime, 'node.exe')); return await fs.realpath(runtime); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+    await fs.mkdir(path.dirname(runtime), { recursive: true });
+    const temporary = `${runtime}.${randomUUID()}.tmp`;
+    await fs.mkdir(temporary);
+    try {
+      await fs.writeFile(path.join(temporary, 'node.exe'), sourceBytes, { flag: 'wx' });
+      const sourceDirectory = path.dirname(source);
+      const npm = path.join(sourceDirectory, 'node_modules', 'npm');
+      try {
+        await fs.access(npm);
+        await fs.cp(npm, path.join(temporary, 'node_modules', 'npm'), { recursive: true, dereference: false, errorOnExist: true });
+        for (const name of ['npm.cmd', 'npx.cmd']) await fs.copyFile(path.join(sourceDirectory, name), path.join(temporary, name));
+      } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+      try { await fs.rename(temporary, runtime); }
+      catch (error) { if (!['EEXIST', 'ENOTEMPTY', 'EPERM'].includes(String((error as NodeJS.ErrnoException).code))) throw error; await fs.access(path.join(runtime, 'node.exe')); }
+    } finally { await fs.rm(temporary, { recursive: true, force: true }); }
+    return fs.realpath(runtime);
+  }
+
+  private buildLauncher(): Promise<string> {
+    return this.launcher ??= this.compileLauncher().catch(error => { this.launcher = undefined; throw error; });
+  }
+
+  private async compileLauncher(): Promise<string> {
+    const source = path.resolve(__dirname, '..', '..', 'resources', 'windows', 'GuardLauncher.cs');
+    const hash = createHash('sha256').update(await fs.readFile(source)).digest('hex');
+    const directory = path.join(this.controlRoot, 'launchers');
+    await fs.mkdir(directory, { recursive: true });
+    const launcher = path.join(directory, `guard-${hash}.exe`);
+    try { await fs.access(launcher); return launcher; }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+    const windows = process.env.SystemRoot ?? 'C:\\Windows';
+    let compiler = path.join(windows, 'Microsoft.NET', 'Framework64', 'v4.0.30319', 'csc.exe');
+    try { await fs.access(compiler); } catch { compiler = path.join(windows, 'Microsoft.NET', 'Framework', 'v4.0.30319', 'csc.exe'); }
+    const temporary = path.join(directory, `guard-${randomUUID()}.exe`);
+    try {
+      await execFile(compiler, ['/nologo', '/target:exe', '/platform:anycpu', '/reference:System.Web.Extensions.dll', `/out:${temporary}`, source], { timeout: 60_000, maxBuffer: 512 * 1024 }).catch(error => {
+        throw new Error(`Native Windows launcher compilation failed: ${String(error.stdout || error.stderr || error.message).slice(0, 8_000)}`);
+      });
+      try { await fs.rename(temporary, launcher); }
+      catch (error) { if (!['EEXIST', 'EPERM'].includes(String((error as NodeJS.ErrnoException).code))) throw error; await fs.access(launcher); }
+      return launcher;
+    } finally { await fs.rm(temporary, { force: true }); }
+  }
+
+  private async writeConfiguration(directory: string, configuration: WindowsLaunchConfiguration): Promise<string> {
+    const destination = path.join(directory, `sandbox-${randomUUID()}.json`);
+    await fs.writeFile(destination, JSON.stringify(configuration), { flag: 'wx', mode: 0o600 });
+    return destination;
+  }
+}
+
+export function windowsSystemExecutable(name: 'cmd.exe' | 'where.exe'): string {
+  return path.win32.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', name);
+}
+
+export function windowsEnvironment(home: string, temporary: string, runtime?: string): Record<string, string> {
+  const windows = process.env.SystemRoot ?? 'C:\\Windows';
+  const environment: Record<string, string> = {
+    SystemRoot: windows, WINDIR: windows, COMSPEC: path.win32.join(windows, 'System32', 'cmd.exe'),
+    PATH: [path.win32.join(home, '.local'), ...(runtime ? [runtime] : []), path.win32.join(windows, 'System32'), windows].join(';'),
+    USERPROFILE: home, HOME: home, HOMEDRIVE: path.win32.parse(home).root.slice(0, 2), HOMEPATH: home.slice(2),
+    APPDATA: path.win32.join(home, 'AppData', 'Roaming'), LOCALAPPDATA: path.win32.join(home, 'AppData', 'Local'),
+    TEMP: temporary, TMP: temporary, PATHEXT: '.COM;.EXE;.BAT;.CMD',
+    CODEX_HOME: path.win32.join(home, '.codex'), CLAUDE_CONFIG_DIR: path.win32.join(home, '.claude'),
+    npm_config_cache: path.win32.join(home, '.npm'), npm_config_prefix: path.win32.join(home, '.local'), AI_FILE_GUARD_MANAGED: '1',
+  };
+  for (const name of ['OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'GITHUB_TOKEN', 'GH_TOKEN']) if (process.env[name]) environment[name] = process.env[name]!;
+  return environment;
+}
+function contains(parent: string, child: string): boolean { const relative = path.relative(parent, child); return !path.isAbsolute(relative) && relative !== '..' && !relative.startsWith(`..${path.sep}`); }
+function digest(input: string): string { return createHash('sha256').update(input.toLowerCase()).digest('hex').slice(0, 32); }
+function profileName(input: string): string { return `AIFileGuard.${digest(input)}`; }

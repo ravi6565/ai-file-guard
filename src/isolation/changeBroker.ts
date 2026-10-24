@@ -114,10 +114,12 @@ export class ChangeBroker {
   }
 
   private async rejectionReason(change: ProposedChange, target: string, baselineHash?: string): Promise<string | undefined> {
-    const parts = normalize(change.relativePath).split('/');
+    // Protect managed metadata consistently on case-insensitive filesystems too.
+    const policyPath = normalize(change.relativePath).toLowerCase();
+    const parts = policyPath.split('/');
     if (parts.includes('.ai-file-guard') || parts.includes('.git') ||
-        parts.some(part => part === 'AGENTS.md' || part === 'CLAUDE.md') ||
-        normalize(change.relativePath).endsWith('.github/copilot-instructions.md')) {
+        parts.some(part => ['agents.md', 'agents.override.md', 'claude.md'].includes(part)) ||
+        policyPath.endsWith('.github/copilot-instructions.md')) {
       return 'Agent changes to authoritative policy files are forbidden.';
     }
     const operation = change.type === 'mkdir' ? 'create' : change.type === 'rmdir' ? 'delete' : change.type;

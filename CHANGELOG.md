@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.0 — native Windows/macOS preview candidate
+
+- Set publisher identity to ravikiranv and add the developer's public support/security contact.
+- Add Preview metadata and reproducible pre-release packaging. Update release, privacy, support and upgrade guidance without expanding enforcement claims to unrestricted AI extensions.
+- Implement a Windows LPAC candidate using native APIs and a kill-on-close job, with no Docker/WSL dependency. Grants apply to private storage/runtime only. Real Windows acceptance remains required before publication.
+- Import saved locks once from the earlier local publisher identity, without modifying the old policy or reintroducing locks after unlock. Sessions, credentials and legacy permission records are not migrated; disable the old extension before using this preview.
+- Add a fresh-profile installed-VSIX acceptance runner. Correct a POSIX-only permission assertion on Windows and bound CI job duration; this does not add Windows enforcement support.
+
 ## 0.10.1 — dynamic AI instruction synchronization
 
 - Reconnected lock/unlock to instruction synchronization for AGENTS.md, Copilot instructions, CLAUDE.md, and the shared INSTRUCTIONS.md reference. Folder rules cover all nested and future paths.

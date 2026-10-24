@@ -1,7 +1,9 @@
 # Security policy
 
-AI File Guard 0.10 includes a verified-on-launch macOS sandbox for managed AI terminals and a trusted change-application service. It does not confine ordinary AI extensions or unrelated host processes. All protected AI execution must use its controlled runtime.
+AI File Guard 0.11 is a Windows/macOS preview candidate with native verified-on-launch isolation for managed AI terminals and a trusted change-application service. The Windows LPAC backend requires real Windows acceptance before publication. It does not confine ordinary AI extensions or unrelated host processes. All protected AI execution must use its controlled runtime.
 
-The macOS sandbox interface is deprecated by Apple. This build is for local acceptance; production security review and broader compatibility validation remain open.
+Report suspected vulnerabilities privately to **ravikiranv8919@gmail.com**. Include the extension, VS Code and macOS versions, the affected workflow, and a minimal reproduction. Do not send credentials or sensitive project files. General support is available at the same address. No response-time guarantee or independent security certification is claimed.
 
-See `docs/SECURITY.md` and `docs/LOCAL-TEST.md` for the boundary and verified behavior. Marketplace publication is deferred; a public security contact and verified release metadata are required before publishing.
+The macOS sandbox interface is deprecated by Apple. Windows uses LPAC with explicit private-storage ACLs/labels, restricted inherited handles and a kill-on-close job; original-project permissions are not changed. Windows internet access uses its native capability boundary, not the macOS proxy. Docker, WSL, administrator elevation and loopback exemptions are not required. Independent security review, real Windows acceptance, long-term OS support, stale-lease crash recovery and broader provider compatibility remain open work. Preview labeling does not remove these limitations. Linux, remote workspaces and browser VS Code have no supported enforcement backend.
+
+See `docs/SECURITY.md` and `docs/LOCAL-TEST.md` for the boundary and verified behavior.

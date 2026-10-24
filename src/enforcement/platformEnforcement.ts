@@ -9,6 +9,6 @@ export function detectEnforcementCapability(platform: NodeJS.Platform = process.
     available: false,
     backend: platform,
     scope: 'managed-agents-only',
-    reason: platform === 'darwin' ? 'Managed sandbox has not been verified yet.' : 'The macOS managed sandbox is unavailable on this platform. No unconfined fallback will be started.',
+    reason: ['darwin', 'win32'].includes(platform) ? 'Managed sandbox has not been verified yet.' : 'No native managed sandbox is available on this platform. No unconfined fallback will be started.',
   };
 }
