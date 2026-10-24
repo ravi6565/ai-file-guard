@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { execFile as execFileCallback } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createServer, connect } from 'node:net';
-import { WindowsSandbox, windowsEnvironment } from '../enforcement/windowsSandbox';
+import { WindowsSandbox, windowsEnvironment, windowsSystemExecutable } from '../enforcement/windowsSandbox';
 import { ManagedSandbox } from '../enforcement/managedSandbox';
 import { LockManager } from '../core/lockManager';
 import { LocalManifestStore } from '../core/localManifestStore';
@@ -72,11 +72,16 @@ native('Native Windows LPAC enforcement', function () {
 
   it('refuses staged junctions and hard-link aliases without modifying original access', async () => {
     const file = path.join(original, 'original.txt'); await fs.writeFile(file, 'original');
+    const icacls = path.win32.join(path.win32.dirname(windowsSystemExecutable('cmd.exe')), 'icacls.exe');
+    const beforeDirectory = (await execFile(icacls, [original])).stdout;
+    const beforeFile = (await execFile(icacls, [file])).stdout;
     await fs.symlink(original, path.join(staged, 'junction'), 'junction');
     await assert.rejects(run(`process.stdout.write('escaped')`), /Reparse|reparse/i);
     await fs.unlink(path.join(staged, 'junction'));
     await fs.link(file, path.join(staged, 'alias.txt'));
     await assert.rejects(run(`process.stdout.write('escaped')`), /hard link/i);
+    assert.equal((await execFile(icacls, [original])).stdout, beforeDirectory, 'Junction rejection must not grant access to the original directory.');
+    assert.equal((await execFile(icacls, [file])).stdout, beforeFile, 'Hard-link rejection must not change the original file ACL or label.');
     assert.equal(await fs.readFile(file, 'utf8'), 'original');
     await fs.writeFile(file, 'manual still allowed');
   });

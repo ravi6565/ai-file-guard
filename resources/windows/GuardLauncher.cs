@@ -139,7 +139,7 @@ public static class GuardLauncher
             Check(CreateProcess(config.Executable, command, IntPtr.Zero, IntPtr.Zero, true, 0x80000 | 0x400 | 4, environment, config.WorkingDirectory, ref startup, out process), "Create LPAC process");
             // Query the exact suspended child's token from the trusted parent,
             // before allowing any agent instruction to execute.
-            VerifyToken(process.hProcess);
+            VerifyToken(process.hProcess, packageSid);
             Check(AssignProcessToJobObject(job, process.hProcess), "Assign process job");
             Check(ResumeThread(process.hThread) != UInt32.MaxValue, "Resume isolated process");
             resumed = true;
@@ -293,23 +293,49 @@ public static class GuardLauncher
         return 0;
     }
 
-    private static void VerifyToken(IntPtr process)
+    private static void VerifyToken(IntPtr process, IntPtr packageSid)
     {
         IntPtr token;
-        Check(OpenProcessToken(process, 8, out token), "Query sandbox token");
+        Check(OpenProcessToken(process, 8 | 2, out token), "Query sandbox token");
         try
         {
             int value, size;
             Check(GetTokenInformation(token, 29, out value, 4, out size), "Query AppContainer state");
             if (value != 1) throw new InvalidOperationException("Probe is not an AppContainer.");
-            Check(GetTokenInformation(token, 46, out value, 4, out size), "Query LPAC state");
-            if (value != 1) throw new InvalidOperationException("Probe is not less-privileged.");
+            // Class 46 has no supported Win32 output/version contract and is
+            // rejected by some Windows builds. Verify documented LPAC access
+            // semantics instead: ignore ALL APPLICATION PACKAGES, but honor the
+            // exact private package SID. Creation still REQUIRES the LPAC flag.
+            IntPtr impersonation;
+            Check(DuplicateToken(token, 2, out impersonation), "Duplicate sandbox query token");
+            try
+            {
+                if (CanAccessDescriptor(impersonation, "S-1-15-2-1")) throw new InvalidOperationException("Child accepts the broad ALL APPLICATION PACKAGES grant.");
+                if (!CanAccessDescriptor(impersonation, new SecurityIdentifier(packageSid).Value)) throw new InvalidOperationException("Child does not honor its private package SID.");
+            }
+            finally { CloseHandle(impersonation); }
         }
         finally { CloseHandle(token); }
     }
 
+    private static bool CanAccessDescriptor(IntPtr token, string package)
+    {
+        IntPtr descriptor; uint length;
+        Check(ConvertStringSecurityDescriptorToSecurityDescriptor("O:SYG:SYD:(A;;0x1;;;WD)(A;;0x1;;;" + package + ")", 1, out descriptor, out length), "Build token access probe");
+        IntPtr privileges = Marshal.AllocHGlobal(1024);
+        try
+        {
+            GENERIC_MAPPING mapping = new GENERIC_MAPPING { GenericRead = 1, GenericWrite = 2, GenericExecute = 4, GenericAll = 7 };
+            uint privilegeLength = 1024, granted; bool allowed;
+            Check(AccessCheck(descriptor, token, 1, ref mapping, privileges, ref privilegeLength, out granted, out allowed), "Check LPAC access semantics");
+            return allowed && (granted & 1) == 1;
+        }
+        finally { Marshal.FreeHGlobal(privileges); LocalFree(descriptor); }
+    }
+
     [StructLayout(LayoutKind.Sequential)] private struct SECURITY_CAPABILITIES { public IntPtr AppContainerSid, Capabilities; public uint CapabilityCount, Reserved; }
     [StructLayout(LayoutKind.Sequential)] private struct SID_AND_ATTRIBUTES { public IntPtr Sid; public uint Attributes; }
+    [StructLayout(LayoutKind.Sequential)] private struct GENERIC_MAPPING { public uint GenericRead, GenericWrite, GenericExecute, GenericAll; }
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)] private struct STARTUPINFO { public int cb; public string lpReserved, lpDesktop, lpTitle; public uint dwX, dwY, dwXSize, dwYSize, dwXCountChars, dwYCountChars, dwFillAttribute, dwFlags; public ushort wShowWindow, cbReserved2; public IntPtr lpReserved2, hStdInput, hStdOutput, hStdError; }
     [StructLayout(LayoutKind.Sequential)] private struct STARTUPINFOEX { public STARTUPINFO StartupInfo; public IntPtr lpAttributeList; }
     [StructLayout(LayoutKind.Sequential)] private struct PROCESS_INFORMATION { public IntPtr hProcess, hThread; public uint dwProcessId, dwThreadId; }
@@ -325,6 +351,8 @@ public static class GuardLauncher
     [DllImport("advapi32.dll")] private static extern IntPtr FreeSid(IntPtr sid);
     [DllImport("advapi32.dll", SetLastError = true)] private static extern bool OpenProcessToken(IntPtr process, uint access, out IntPtr token);
     [DllImport("advapi32.dll", SetLastError = true)] private static extern bool GetTokenInformation(IntPtr token, int informationClass, out int information, int length, out int returned);
+    [DllImport("advapi32.dll", SetLastError = true)] private static extern bool DuplicateToken(IntPtr token, int level, out IntPtr duplicate);
+    [DllImport("advapi32.dll", SetLastError = true)] private static extern bool AccessCheck(IntPtr descriptor, IntPtr token, uint desired, ref GENERIC_MAPPING mapping, IntPtr privileges, ref uint privilegeLength, out uint granted, out bool allowed);
     [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)] private static extern bool ConvertStringSecurityDescriptorToSecurityDescriptor(string sddl, uint revision, out IntPtr descriptor, out uint length);
     [DllImport("advapi32.dll", SetLastError = true)] private static extern bool GetSecurityDescriptorSacl(IntPtr descriptor, out bool present, out IntPtr sacl, out bool defaulted);
     [DllImport("advapi32.dll")] private static extern uint SetSecurityInfo(IntPtr handle, int type, uint information, IntPtr owner, IntPtr group, IntPtr dacl, IntPtr sacl);
