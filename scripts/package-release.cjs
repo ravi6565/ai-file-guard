@@ -17,6 +17,8 @@ async function main() {
   }
   if (!['darwin-arm64', 'darwin-x64', 'win32-x64'].includes(target)) throw new Error(`No release backend for ${target}. Package on a supported host or specify a supported target.`);
   if (manifest.publisher !== 'ravikiranv' || manifest.name !== 'ai-file-guard' || manifest.preview !== false) throw new Error('Stable packaging requires the expected publisher, extension ID and preview: false.');
+  const homepage = new URL(manifest.homepage);
+  if (homepage.protocol !== 'https:' || homepage.hostname === 'marketplace.visualstudio.com') throw new Error('The homepage must be an owned HTTPS project/developer page, not a Marketplace listing.');
   if (!/^\d+\.\d+\.\d+$/.test(manifest.version)) throw new Error('Marketplace requires a numeric extension version.');
   const hash = data => createHash('sha256').update(data).digest('hex');
   if (target === 'win32-x64') {

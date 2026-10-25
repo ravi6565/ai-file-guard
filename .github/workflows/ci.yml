@@ -75,6 +75,7 @@ jobs:
               manifest = json.loads(archive.read('extension/package.json'))
               assert manifest['preview'] is False
               assert manifest['version'] == expected['version']
+              assert manifest['homepage'] == expected['homepage'] == 'https://github.com/ravi6565'
               assert manifest['publisher'] == 'ravikiranv'
               assert manifest['name'] == 'ai-file-guard'
               xml = ET.fromstring(archive.read('extension.vsixmanifest'))

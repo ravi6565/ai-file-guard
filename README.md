@@ -1,6 +1,6 @@
 # AI File Guard
 
-**Windows x64 + macOS Apple Silicon · Version 0.12.0 · Publisher: ravikiranv · Support: [ravikiranv8919@gmail.com](mailto:ravikiranv8919@gmail.com)**
+**Windows x64 + macOS Apple Silicon · Version 0.12.1 · Publisher: ravikiranv · Support: [ravikiranv8919@gmail.com](mailto:ravikiranv8919@gmail.com)**
 
 AI File Guard 0.12 combines local file/folder locks, synchronized agent instructions, and native managed AI terminals. Your normal editor stays writable. AI tools launched in **Protected AI Terminal** cannot write original projects directly; the apply service rejects changes to locked originals.
 

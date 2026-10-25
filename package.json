@@ -2,7 +2,7 @@
   "name": "ai-file-guard",
   "displayName": "AI File Guard",
   "description": "Native protected AI terminals, local file/folder locks, and synchronized agent instructions.",
-  "version": "0.12.0",
+  "version": "0.12.1",
   "publisher": "ravikiranv",
   "preview": false,
   "author": {
@@ -13,7 +13,7 @@
     "type": "git",
     "url": "https://github.com/ravi6565/ai-file-guard.git"
   },
-  "homepage": "https://marketplace.visualstudio.com/items?itemName=ravikiranv.ai-file-guard",
+  "homepage": "https://github.com/ravi6565",
   "bugs": {
     "email": "ravikiranv8919@gmail.com"
   },

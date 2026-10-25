@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.12.1 — Marketplace homepage correction
+
+- Replace the self-referencing Marketplace homepage URL with the developer’s public GitHub profile. The source repository remains private.
+- Reject Marketplace listing URLs in release packaging and verify the packaged homepage matches the source manifest.
+- Retain the stable release channel and the previously validated protection behavior.
+
 ## 0.12.0 — Windows/macOS stable release
 
 - Publish the validated managed-terminal workflow on the stable release channel; disable Preview metadata and pre-release packaging.
