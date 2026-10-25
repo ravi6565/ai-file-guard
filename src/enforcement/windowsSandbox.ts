@@ -107,7 +107,10 @@ export class WindowsSandbox {
     const sourceBytes = await fs.readFile(path.join(bundle, 'node.exe'));
     const npmArchive = await fs.readFile(path.join(bundle, 'npm.tar'));
     if (sha256(sourceBytes) !== manifest.nodeSha256 || sha256(npmArchive) !== manifest.npmSha256) throw new Error('Private Windows runtime checksum mismatch. Reinstall a tested package.');
-    const runtime = path.join(this.controlRoot, 'node-runtimes', createHash('sha256').update(sourceBytes).update(manifest.npmSha256).update(workspaceIdentity.toLowerCase()).digest('hex'));
+    // Keep executable paths below the Windows loader limit even for nested
+    // VS Code profiles. A 128-bit cache key matches the profile identity size;
+    // complete binary/archive SHA-256 verification above remains unchanged.
+    const runtime = path.join(this.controlRoot, 'node-runtimes', createHash('sha256').update(sourceBytes).update(manifest.npmSha256).update(workspaceIdentity.toLowerCase()).digest('hex').slice(0, 32));
     try { await fs.access(path.join(runtime, 'node.exe')); return await fs.realpath(runtime); }
     catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
     await fs.mkdir(path.dirname(runtime), { recursive: true });

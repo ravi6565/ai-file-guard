@@ -101,7 +101,9 @@ native('Native Windows LPAC enforcement', function () {
     const control = path.join(root, 'profile-'.repeat(10), 'globalStorage', 'runtime');
     const deepRuntime = new WindowsSandbox(control);
     const tools = await deepRuntime.prepareNodeRuntime(original);
-    const launch = await deepRuntime.prepareCommand(staged, original, path.join(tools, 'node.exe'), ['-e', "process.stdout.write('LONG_PATH_OK')"], tools);
+    const longFile = path.join(tools, 'node_modules', 'npm', 'node_modules', '@npmcli', 'config', 'lib', 'index.js');
+    assert.ok(longFile.length > 260, 'The fixture must exercise a real npm file beyond MAX_PATH.');
+    const launch = await deepRuntime.prepareCommand(staged, original, path.join(tools, 'node.exe'), ['-e', "require('fs').readFileSync(process.argv[1]);process.stdout.write('LONG_PATH_OK')", longFile], tools);
     const result = await execFile(launch.executable, launch.arguments, { cwd: launch.cwd, env: launch.environment, timeout: 45_000, maxBuffer: 128 * 1024 });
     assert.equal(result.stdout, 'LONG_PATH_OK');
   });
