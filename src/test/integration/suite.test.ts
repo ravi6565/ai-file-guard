@@ -202,10 +202,12 @@ suite('AI File Guard local policy', () => {
         }
         assert.fail(`Protected terminal did not report ${expected}.`);
       };
-      sendNode("require('fs').writeFileSync(process.argv[1],'RUNNING');setInterval(()=>{},1000)");
+      sendNode("process.once('SIGINT',()=>{require('fs').writeFileSync(process.argv[1],'STOPPED');process.exit(0)});require('fs').writeFileSync(process.argv[1],'RUNNING');setInterval(()=>{},1000)");
       await awaitMarker('RUNNING');
       terminal.show();
       await vscode.commands.executeCommand('workbench.action.terminal.sendSequence', { text: '\u0003' });
+      await awaitMarker('STOPPED');
+      assert.ok(vscode.window.terminals.includes(terminal), 'Interrupting an agent must keep its protected terminal open.');
       sendNode("require('fs').writeFileSync(process.argv[1],'RESUMED')");
       await awaitMarker('RESUMED');
       await fs.writeFile(file, 'developer edit still allowed');

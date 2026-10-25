@@ -40,6 +40,14 @@ public static class GuardLauncher
             if (args.Length > 0 && args[0] == "--probe-child") return Probe(args);
             if (args.Length != 2 || args[0] != "--config") throw new ArgumentException("Expected --config <trusted launch file>.");
             Configuration config = new JavaScriptSerializer().Deserialize<Configuration>(File.ReadAllText(args[1]));
+            uint consoleMode;
+            if (GetConsoleMode(GetStdHandle(-10), out consoleMode))
+            {
+                // Ctrl+C belongs to the foreground agent, not this waiting host
+                // wrapper. Console events still reach the child. Closing the
+                // terminal retains default termination and kill-on-close jobs.
+                Console.CancelKeyPress += delegate(object sender, ConsoleCancelEventArgs cancel) { cancel.Cancel = true; };
+            }
             return Launch(config);
         }
         catch (Exception error)
@@ -420,6 +428,7 @@ public static class GuardLauncher
     [DllImport("advapi32.dll")] private static extern uint GetSecurityDescriptorLength(IntPtr descriptor);
     [DllImport("kernel32.dll")] private static extern IntPtr GetCurrentProcess();
     [DllImport("kernel32.dll", SetLastError = true)] private static extern IntPtr GetStdHandle(int descriptor);
+    [DllImport("kernel32.dll", SetLastError = true)] private static extern bool GetConsoleMode(IntPtr handle, out uint mode);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool DuplicateHandle(IntPtr sourceProcess, IntPtr source, IntPtr targetProcess, out IntPtr target, uint access, bool inherit, uint options);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool InitializeProcThreadAttributeList(IntPtr list, int count, int flags, ref IntPtr size);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool UpdateProcThreadAttribute(IntPtr list, uint flags, IntPtr attribute, IntPtr value, IntPtr size, IntPtr previous, IntPtr returned);
