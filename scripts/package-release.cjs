@@ -12,11 +12,11 @@ async function main() {
   const args = process.argv.slice(2);
   while (args.length) {
     const option = args.shift();
-    if (!['--target', '--out'].includes(option) || !args.length || args[0].startsWith('--')) throw new Error('Usage: npm run package:preview -- [--target darwin-arm64|darwin-x64|win32-x64] [--out file.vsix]');
+    if (!['--target', '--out'].includes(option) || !args.length || args[0].startsWith('--')) throw new Error('Usage: npm run package:release -- [--target darwin-arm64|darwin-x64|win32-x64] [--out file.vsix]');
     if (option === '--target') target = args.shift(); else output = args.shift();
   }
   if (!['darwin-arm64', 'darwin-x64', 'win32-x64'].includes(target)) throw new Error(`No release backend for ${target}. Package on a supported host or specify a supported target.`);
-  if (manifest.publisher !== 'ravikiranv' || manifest.name !== 'ai-file-guard' || manifest.preview !== true) throw new Error('Unexpected publisher, extension ID or missing Preview metadata.');
+  if (manifest.publisher !== 'ravikiranv' || manifest.name !== 'ai-file-guard' || manifest.preview !== false) throw new Error('Stable packaging requires the expected publisher, extension ID and preview: false.');
   if (!/^\d+\.\d+\.\d+$/.test(manifest.version)) throw new Error('Marketplace requires a numeric extension version.');
   const hash = data => createHash('sha256').update(data).digest('hex');
   if (target === 'win32-x64') {
@@ -28,17 +28,17 @@ async function main() {
     await fs.access(path.join(bundle, '..', 'npm-private-roots.cjs'));
     for (const file of ['codex.cmd', 'codex.cjs']) await fs.access(path.join(bundle, '..', file));
   }
-  const destination = path.resolve(root, output ?? `artifacts/ai-file-guard-${manifest.version}-${target}-preview.vsix`);
+  const destination = path.resolve(root, output ?? `artifacts/ai-file-guard-${manifest.version}-${target}.vsix`);
   await fs.mkdir(path.dirname(destination), { recursive: true });
   const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'guard-package-'));
   try {
     const ignoreFile = path.join(temporary, 'package.ignore');
     const ignores = await fs.readFile(path.join(root, '.vscodeignore'), 'utf8');
     await fs.writeFile(ignoreFile, `${ignores}\n${target.startsWith('darwin-') ? 'resources/windows/**\n' : ''}`);
-    await createVSIX({ cwd: root, packagePath: destination, target, preRelease: true, ignoreFile });
+    await createVSIX({ cwd: root, packagePath: destination, target, preRelease: false, ignoreFile });
     const digest = hash(await fs.readFile(destination));
     await fs.writeFile(`${destination}.sha256`, `${digest}  ${path.basename(destination)}\n`);
-    await fs.writeFile(`${destination}.json`, JSON.stringify({ extension: `${manifest.publisher}.${manifest.name}`, version: manifest.version, target, preRelease: true, sha256: digest, protectionScope: 'managed-agents-only', acceptanceRequired: true }, null, 2) + '\n');
+    await fs.writeFile(`${destination}.json`, JSON.stringify({ extension: `${manifest.publisher}.${manifest.name}`, version: manifest.version, target, preRelease: false, sha256: digest, protectionScope: 'managed-agents-only', acceptanceRequired: true }, null, 2) + '\n');
     console.log(`Prepared ${destination}\nSHA256 ${digest}\nRun installed-VSIX acceptance on ${target} before uploading.`);
   } finally { await fs.rm(temporary, { recursive: true, force: true }); }
 }

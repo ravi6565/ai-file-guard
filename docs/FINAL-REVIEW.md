@@ -1,10 +1,10 @@
-# Release review — 0.11.0 candidate
+# Release review — 0.12.0 stable
 
-Status: PREPARED for local pre-release acceptance. All automated platform/package gates passed in [review CI](https://github.com/ravi6565/ai-file-guard/actions/runs/40167753578). Marketplace publication remains pending the developer's signed-in provider acceptance. No model task, Marketplace upload or production security certification has been performed.
+Status: Stable release preparation. The developer reports successful preview validation and requests the stable release channel. The 0.11.0 preview passed [full platform/package CI](https://github.com/ravi6565/ai-file-guard/actions/runs/40169335886). Version 0.12.0 removes Preview/pre-release metadata and retains the runtime behavior. Fresh stable-payload CI acceptance is required before upload. Publication has not been performed.
 
-## Remaining acceptance
+## Acceptance and publication
 
-Install the exact prepared VSIX on your device and run a signed-in AI CLI task using `LOCAL-TEST.md`. CLI installation/version tests establish startup, not a complete authenticated model workflow. Ordinary AI chat extensions remain outside enforcement. Publishing is a separate manual step described in `DEPLOYMENT.md`.
+Developer-reported preview acceptance is recorded separately from automated evidence. No signed-in model task or independent security certification has been performed by this release preparation. Validate the new stable packages with `LOCAL-TEST.md`; follow `DEPLOYMENT.md` to publish those exact files. Ordinary AI chat extensions remain outside enforcement.
 
 ## Scope
 

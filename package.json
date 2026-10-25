@@ -1,10 +1,10 @@
 {
   "name": "ai-file-guard",
   "displayName": "AI File Guard",
-  "description": "Preview: native protected AI terminals, local file/folder locks, and synchronized agent instructions.",
-  "version": "0.11.0",
+  "description": "Native protected AI terminals, local file/folder locks, and synchronized agent instructions.",
+  "version": "0.12.0",
   "publisher": "ravikiranv",
-  "preview": true,
+  "preview": false,
   "author": {
     "name": "ravikiranv",
     "email": "ravikiranv8919@gmail.com"
@@ -102,8 +102,8 @@
     "test:vsix": "npm run compile && node dist/test/runIntegration.js --vsix",
     "test:sandbox": "npm run compile && node dist/test/runNative.js",
     "lint": "tsc -p . --noEmit",
-    "package": "vsce package --pre-release",
-    "package:preview": "node scripts/package-preview.cjs"
+    "package": "vsce package",
+    "package:release": "node scripts/package-release.cjs"
   },
   "overrides": {
     "@vscode/vsce": { "@azure/identity": "4.13.0", "uuid": "^11.1.1" },

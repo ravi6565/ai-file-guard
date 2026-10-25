@@ -1,69 +1,74 @@
-# Deploying the 0.11 preview
+# Deploying AI File Guard 0.12.0
 
 Publisher: **ravikiranv**. Extension ID: **ravikiranv.ai-file-guard**.
 Support/security contact: **ravikiranv8919@gmail.com**.
 
-The release is a managed-terminal preview. Ordinary AI chat extensions are not
-confined. Keep this scope visible in the Marketplace description and README.
+This release uses the stable Marketplace channel. Protection applies to the
+Protected AI Terminal and trusted apply service. Ordinary AI chat extensions are
+outside enforcement; instruction files provide cooperative guidance. Keep this
+scope visible in the listing.
 
-## Prepare the packages
+## Build and validate
 
 Run `npm ci`, `npm run lint`, `npm test`, and `npm run test:sandbox` on the
-corresponding supported host. Then run:
+corresponding supported host, then:
 
 ```sh
-npm run package:preview
+npm run package:release
 ```
 
-The command creates a platform-specific VSIX and matching `.sha256` and `.json`
-sidecars under `artifacts/`. It sets the pre-release property, checks publisher
-metadata, and leaves Marketplace unchanged. macOS packages exclude Windows
-resources. Windows x64 packaging requires the checksum-verified private runtime
-from the `windows-lpac-runtime` CI artifact, extracted into
-`resources/windows/runtime/`. There is no Docker/WSL dependency or stock Node
-fallback. For a source build, see `resources/windows/RUNTIME.md`.
+The command writes a platform-specific VSIX and matching `.sha256` and `.json`
+sidecars under `artifacts/`. It requires `preview: false`, disables the pre-release
+property and validates publisher identity and Windows runtime provenance.
+macOS packages exclude Windows resources. Windows x64 requires the compatible
+private runtime from the `windows-lpac-runtime` CI artifact, extracted into
+`resources/windows/runtime/`; see `resources/windows/RUNTIME.md` for source builds.
+There is no Docker/WSL dependency or stock Node fallback.
 
-CI uploads each candidate only after its installed-VSIX tests pass. Use the
-artifact for the host/architecture actually tested; do not upload the development
-universal VSIX produced by `npm run package`. A target filename alone does not
-prove acceptance. Check the workflow result and the target in the JSON sidecar.
+CI uploads each package only after its installed-VSIX tests pass. Release targets
+qualified by testing are Windows x64 and macOS Apple Silicon. The universal
+VSIX from `npm run package` is for development. Use the target packages from the
+successful stable-release CI run. Verify their version, target, channel and hash.
 
-## Accept the exact VSIX locally
-
-Install the chosen VSIX through **Extensions: Install from VSIX**. Disable the old
-`ai-file-guard.ai-file-guard` extension first; verify migrated locks before
-uninstalling it or deleting its data. Run the automated acceptance against that
-same file on the corresponding host:
+Install the exact package through **Extensions: Install from VSIX**. Disable the
+old `ai-file-guard.ai-file-guard` extension first; verify migrated locks before
+removing old data. Automated package acceptance uses:
 
 ```sh
-npm run test:vsix -- artifacts/ai-file-guard-0.11.0-darwin-arm64-preview.vsix
+npm run test:vsix -- artifacts/ai-file-guard-0.12.0-darwin-arm64.vsix
 ```
 
-For Windows, substitute the `win32-x64` filename. Follow `LOCAL-TEST.md`: verify the
-sandbox; lock two files and a recursive folder; confirm instruction updates;
-confirm manual editing; deny managed original writes and locked proposals; then
-unlock and apply. Restart and confirm lock persistence. Run a real signed-in AI
-CLI task inside Protected AI Terminal. Authentication/model tasks have not been
-performed by packaging or unsigned CLI version smoke tests.
+For Windows substitute `win32-x64`. Follow `LOCAL-TEST.md` for manual checks.
+The developer reports successful acceptance of the 0.11.0 preview. The stable
+release keeps its runtime behavior and needs fresh package acceptance for the
+changed version/channel. CLI installation/version tests do not independently
+validate authentication or signed-in model workflows.
 
-Resolve every blocker in `FINAL-REVIEW.md` before upload. Keep the exact tested
-VSIX and checksum; do not rebuild after acceptance and upload a different file.
-
-## Upload after acceptance
+## Publish the tested files
 
 Open [Manage Publishers & Extensions](https://marketplace.visualstudio.com/manage)
-and select publisher **ravikiranv**. For the first package choose **New extension
-→ Visual Studio Code**, then upload the tested platform-specific VSIX. Add the
-other tested platform package under the same extension/version, preserving the
-pre-release channel. Review the Preview label, platform, icon, README and support
-contact before completing publication. Do not upload checksum/JSON sidecars.
+and select **ravikiranv**. For the first upload choose **New extension → Visual
+Studio Code** and select the tested macOS VSIX. If the extension already exists,
+use its update action. Use the same listing's update action to add the Windows
+VSIX at version **0.12.0**. Both packages must use the **stable** release channel,
+with no Preview label. Upload only `.vsix` files, retaining JSON/checksum sidecars
+as release records. Wait for Marketplace validation, then check both targets and
+install the published build on each supported host.
 
-If the portal's listing already exists, use its update action. Individual
-engineers can publish through their own publisher; a company is not needed.
-This preparation does not verify publisher-account ownership or publish anything.
+Alternatively, after configuring publishing authentication locally, publish the
+exact packages with the installed VSCE CLI:
 
-For automated publishing later, keep the Marketplace credential in a repository
-secret, not in source, instructions or a VSIX. No publishing token is needed for
-this manual-upload workflow. See the
-[official publishing guide](https://code.visualstudio.com/api/working-with-extensions/publishing-extension)
-for platform packages and pre-release behavior.
+```sh
+node node_modules/@vscode/vsce/vsce publish --packagePath artifacts/ai-file-guard-0.12.0-darwin-arm64.vsix artifacts/ai-file-guard-0.12.0-win32-x64.vsix
+```
+
+This command uses existing files. Do not rebuild an accepted package or add the
+`--pre-release` flag. Keep credentials out of source, chat, JSON sidecars and VSIXs.
+Manual browser upload does not require a publishing token. Account creation by
+itself does not authenticate this development session for CLI publishing.
+
+The stable channel does not imply independent security certification or universal
+AI interception. See `SECURITY.md` for supported boundaries and remaining risks.
+Publication is complete only after Marketplace confirms it; local packaging does
+not publish anything. Follow the [official publishing guide](https://code.visualstudio.com/api/working-with-extensions/publishing-extension)
+for current authentication and platform-package rules.

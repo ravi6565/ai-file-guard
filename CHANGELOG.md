@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.12.0 — Windows/macOS stable release
+
+- Publish the validated managed-terminal workflow on the stable release channel; disable Preview metadata and pre-release packaging.
+- Provide separate Windows x64 and macOS Apple Silicon packages with checksums and runtime provenance validation.
+- Preserve dynamic file/folder lock instructions, manual editing, live-policy application and native OS confinement for Protected AI Terminal processes. Ordinary external AI chat extensions remain outside enforcement.
+- Include the Windows foreground-interruption fix: Ctrl+C stops the foreground command while the protected terminal remains usable.
+- The developer reports successful preview acceptance. New stable payloads require their own installed-package checks before upload.
+
 ## 0.11.0 — native Windows/macOS preview candidate
 
 - Set publisher identity to ravikiranv and add the developer's public support/security contact.

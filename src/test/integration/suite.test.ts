@@ -30,6 +30,7 @@ suite('AI File Guard local policy', () => {
   test('activates and verifies the scoped managed sandbox', async () => {
     const extension = vscode.extensions.getExtension<GuardAPI>('ravikiranv.ai-file-guard');
     assert.ok(extension);
+    assert.equal(extension.packageJSON.preview, false, 'The stable release must not carry Preview labeling.');
     api = await extension.activate();
     const commands = await vscode.commands.getCommands(true);
     for (const name of ['lock', 'addReviewPolicy', 'unlock', 'startManagedAgent', 'verifySandbox', 'previewAgentChanges', 'repairHardLocks', 'createReviewWorkspace', 'applyReviewWorkspace']) {

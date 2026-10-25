@@ -59,8 +59,33 @@ jobs:
       - run: npm run test:integration
         if: runner.os != 'Linux'
       - run: npm run package
-      - run: npm run package:preview -- --out candidate.vsix
+      - run: npm run package:release -- --out candidate.vsix
         if: runner.os != 'Linux'
+      - name: Verify stable channel and package identity
+        if: runner.os != 'Linux'
+        shell: python
+        run: |
+          import hashlib, json, pathlib, xml.etree.ElementTree as ET, zipfile
+          package = pathlib.Path('candidate.vsix')
+          metadata = json.loads(pathlib.Path('candidate.vsix.json').read_text())
+          expected = json.loads(pathlib.Path('package.json').read_text())
+          assert metadata['preRelease'] is False
+          assert hashlib.sha256(package.read_bytes()).hexdigest() == metadata['sha256']
+          with zipfile.ZipFile(package) as archive:
+              manifest = json.loads(archive.read('extension/package.json'))
+              assert manifest['preview'] is False
+              assert manifest['version'] == expected['version']
+              assert manifest['publisher'] == 'ravikiranv'
+              assert manifest['name'] == 'ai-file-guard'
+              xml = ET.fromstring(archive.read('extension.vsixmanifest'))
+              ns = {'v': 'http://schemas.microsoft.com/developer/vsx-schema/2011'}
+              identity = xml.find('v:Metadata/v:Identity', ns)
+              assert identity.attrib['Version'] == expected['version']
+              assert identity.attrib['TargetPlatform'] == metadata['target']
+              assert 'Preview' not in xml.findtext('v:Metadata/v:GalleryFlags', '', ns)
+              properties = {p.attrib['Id']: p.attrib.get('Value') for p in xml.findall('.//v:Property', ns)}
+              assert properties.get('Microsoft.VisualStudio.Code.PreRelease', 'false') == 'false'
+          print('Stable channel, identity, target and checksum verified.')
       - run: npm run test:vsix -- candidate.vsix
         if: runner.os != 'Linux'
       - uses: actions/upload-artifact@v4

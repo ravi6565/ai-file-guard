@@ -1,8 +1,8 @@
 # AI File Guard
 
-**Windows x64 + macOS Apple Silicon preview candidate · Publisher: ravikiranv · Support: [ravikiranv8919@gmail.com](mailto:ravikiranv8919@gmail.com)**
+**Windows x64 + macOS Apple Silicon · Version 0.12.0 · Publisher: ravikiranv · Support: [ravikiranv8919@gmail.com](mailto:ravikiranv8919@gmail.com)**
 
-AI File Guard 0.11 combines local file/folder locks, synchronized agent instructions, and native managed AI terminals. Your normal editor stays writable. AI tools launched in **Protected AI Terminal** cannot write original projects directly; the apply service rejects changes to locked originals.
+AI File Guard 0.12 combines local file/folder locks, synchronized agent instructions, and native managed AI terminals. Your normal editor stays writable. AI tools launched in **Protected AI Terminal** cannot write original projects directly; the apply service rejects changes to locked originals.
 
 **Use the Protected AI Terminal for protection. Ordinary Codex, Copilot or Claude chat extensions in your unrestricted VS Code window are outside this boundary. This extension does not intercept those sessions.**
 
@@ -58,12 +58,12 @@ npm run lint
 npm run test:unit
 npm run test:sandbox
 npm run test:integration
-npm run package:preview
+npm run package:release
 ```
 
 Native tests require the corresponding supported host and an execution context permitted to launch its OS sandbox. Windows tests also require the generated private runtime; see resources/windows/RUNTIME.md. Unit tests do not count skipped native tests as proof. The optional `dist/test/checkManagedNetwork.js` diagnostic verifies public npm DNS/HTTPS; setting `AI_FILE_GUARD_CLI_SMOKE=1` additionally installs/runs Codex CLI only in a temporary sandbox home, without a model request or sign-in.
 
-Build the Marketplace candidate with `npm run package:preview`. It writes the host-targeted VSIX, SHA-256 checksum and metadata to `artifacts/`; Windows packaging validates the bundled compatible runtime and macOS packages exclude Windows binaries. See `docs/DEPLOYMENT.md` for exact acceptance and manual-upload steps. Both the Preview label and pre-release channel are set. Platform-specific release artifacts must be packaged and tested on their supported hosts; a universal candidate is not proof of cross-platform enforcement. Publishing remains a manual action after both native acceptance gates pass. A build passing local checks is not a security certification or proof of every provider's signed-in workflow.
+Build the Marketplace candidate with `npm run package:release`. It writes the host-targeted VSIX, SHA-256 checksum and metadata to `artifacts/`; Windows packaging validates the bundled compatible runtime and macOS packages exclude Windows binaries. See `docs/DEPLOYMENT.md` for exact acceptance and manual-upload steps. Packages use the stable release channel with Preview labeling disabled. Platform-specific release artifacts must be packaged and tested on their supported hosts; a universal candidate is not proof of cross-platform enforcement. Publishing remains a manual action after both native acceptance gates pass. A build passing local checks is not a security certification or proof of every provider's signed-in workflow.
 
 ## Privacy and support
 

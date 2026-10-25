@@ -66,7 +66,7 @@ async function main(): Promise<void> {
         const metadata = JSON.parse(packageJson) as { publisher?: string; name?: string };
         if (metadata.publisher === 'ravikiranv' && metadata.name === 'ai-file-guard') installedPath = candidatePath;
       }
-      if (!installedPath) throw new Error('The installed preview extension could not be found in the isolated profile.');
+      if (!installedPath) throw new Error('The installed extension could not be found in the isolated profile.');
       developmentPath = installedPath;
     }
     await runTests({
