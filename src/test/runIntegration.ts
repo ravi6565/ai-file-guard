@@ -43,9 +43,20 @@ async function main(): Promise<void> {
       const installArgs = [...cliArgs, '--install-extension', vsix, '--force', '--user-data-dir', path.join(testRoot, 'profile'), '--extensions-dir', path.join(testRoot, 'extensions')];
       // code.cmd cannot be passed to execFile on patched Windows Node releases.
       // Invoke the same Electron CLI entry directly, without shell interpolation.
-      const installed = process.platform === 'win32'
-        ? await execFileAsync(vscodeExecutablePath, [path.join(path.dirname(vscodeExecutablePath), 'resources', 'app', 'out', 'cli.js'), ...installArgs], { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } })
-        : await execFileAsync(cli, installArgs);
+      let installed: { stdout: string };
+      if (process.platform === 'win32') {
+        const wrapper = await fs.readFile(cli, 'utf8');
+        const entry = /"%~dp0([^"\r\n]+\.(?:c?js))"/i.exec(wrapper);
+        if (!entry) throw new Error(`Cannot locate the Windows CLI entry in ${cli}: ${wrapper.slice(0, 1500)}`);
+        const cliEntry = path.resolve(path.dirname(cli), entry[1]);
+        try { await fs.access(cliEntry); }
+        catch {
+          const resources = path.join(path.dirname(vscodeExecutablePath), 'resources');
+          const layout = await Promise.all(['', 'app', path.join('app', 'out')].map(async suffix => ({ directory: path.join(resources, suffix), entries: await fs.readdir(path.join(resources, suffix)).catch(() => []) })));
+          throw new Error(`Windows CLI entry missing: ${cliEntry}. Wrapper: ${wrapper.slice(0, 1500)}. Layout: ${JSON.stringify(layout)}`);
+        }
+        installed = await execFileAsync(vscodeExecutablePath, [cliEntry, ...installArgs], { env: { ...process.env, VSCODE_DEV: '', ELECTRON_RUN_AS_NODE: '1' } });
+      } else installed = await execFileAsync(cli, installArgs);
       console.log(installed.stdout.trim());
       const installedDirectories = await fs.readdir(path.join(testRoot, 'extensions'), { withFileTypes: true });
       let installedPath: string | undefined;

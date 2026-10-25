@@ -36,9 +36,11 @@ These flags can change behavior for symlinked native modules, so provider CLI
 compatibility must still be tested. npm --version and public registry HTTPS
 have passed in native Windows CI.
 
-The derived npm copy appends `npm-realpath-fallback.cjs` to the checksum-pinned
-Arborist helper. When an ancestor metadata scan fails with EPERM/EACCES, it tries
-the native filesystem realpath for the requested target. Native access failures
-still propagate; host drive/user-directory ACLs remain unchanged. This source
-addition is included in the derived-runtime cache key and runtime-build.json.
+The derived npm copy appends `npm-private-roots.cjs` to the checksum-pinned
+Arborist helper. It seeds npm's path cache with the launcher's verified canonical
+private roots, then retains npm's original lstat/readlink checks below those
+roots. Host ancestors are not scanned or granted; access failures still propagate.
+This is compatibility metadata, not an enforcement decision: the LPAC token
+continues to govern every filesystem operation even if a child changes its env.
+The source addition is included in the runtime cache key and runtime-build.json.
 The base npm archive and its upstream licenses remain in the Windows package.

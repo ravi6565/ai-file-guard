@@ -25,7 +25,7 @@ async function main() {
     if (runtime.architecture !== 'x64' || runtime.version !== '24.22.1' || runtime.sourceSha256 !== '001773d9bd53fbd27a25efd42aa6a9693ebfe500998ca9bec635e9b6ee79bc91' || runtime.patchSha256 !== hash(await fs.readFile(path.join(root, 'resources', 'windows', 'libuv-appcontainer.patch')))) throw new Error('Windows runtime provenance does not match the pinned build.');
     for (const [file, expected] of [['node.exe', runtime.nodeSha256], ['npm.tar', runtime.npmSha256]]) if (hash(await fs.readFile(path.join(bundle, file))) !== expected) throw new Error(`Windows runtime checksum mismatch: ${file}`);
     for (const file of ['LICENSE', 'npm.cmd', 'npx.cmd']) await fs.access(path.join(bundle, file));
-    await fs.access(path.join(bundle, '..', 'npm-realpath-fallback.cjs'));
+    await fs.access(path.join(bundle, '..', 'npm-private-roots.cjs'));
   }
   const destination = path.resolve(root, output ?? `artifacts/ai-file-guard-${manifest.version}-${target}-preview.vsix`);
   await fs.mkdir(path.dirname(destination), { recursive: true });

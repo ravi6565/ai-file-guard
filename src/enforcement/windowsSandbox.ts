@@ -85,6 +85,7 @@ export class WindowsSandbox {
       throw new Error('Unsafe sandbox writable path or reparse point.');
     }
     const environment = windowsEnvironment(canonicalHome, canonicalTemporary, readOnlyRuntime);
+    environment.AI_FILE_GUARD_PRIVATE_ROOTS = JSON.stringify([staging, canonicalHome, canonicalTemporary, ...(readOnlyRuntime ? [readOnlyRuntime] : [])]);
     const config = await this.writeConfiguration(path.dirname(staging), {
       ProfileName: profileName(original), WritableRoots: [staging, canonicalHome, canonicalTemporary],
       ReadOnlyRoots: readOnlyRuntime ? [readOnlyRuntime] : [], Executable: executable, Arguments: args,
@@ -106,7 +107,7 @@ export class WindowsSandbox {
     if (manifest.architecture !== 'x64' || !/^[a-f0-9]{64}$/.test(manifest.nodeSha256) || !/^[a-f0-9]{64}$/.test(manifest.npmSha256)) throw new Error('Invalid private Windows runtime manifest.');
     const sourceBytes = await fs.readFile(path.join(bundle, 'node.exe'));
     const npmArchive = await fs.readFile(path.join(bundle, 'npm.tar'));
-    const npmCompatibility = await fs.readFile(path.join(bundle, '..', 'npm-realpath-fallback.cjs'));
+    const npmCompatibility = await fs.readFile(path.join(bundle, '..', 'npm-private-roots.cjs'));
     if (sha256(sourceBytes) !== manifest.nodeSha256 || sha256(npmArchive) !== manifest.npmSha256) throw new Error('Private Windows runtime checksum mismatch. Reinstall a tested package.');
     // Keep executable paths below the Windows loader limit even for nested
     // VS Code profiles. A 128-bit cache key matches the profile identity size;
