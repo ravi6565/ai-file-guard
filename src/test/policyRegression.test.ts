@@ -40,6 +40,31 @@ describe('Local policy and broker regressions', () => {
     assert.equal((await one.status(second)).protected, true);
   });
 
+  (process.platform === 'win32' ? it : it.skip)('retains policy and its lease while a Windows reader briefly blocks replacement', async () => {
+    const first = path.join(workspace, 'first.txt'); const second = path.join(workspace, 'second.txt');
+    await fs.writeFile(first, 'first'); await fs.writeFile(second, 'second');
+    const locks = await connect(); await locks.lock(first, 'file');
+    const rename = fs.rename;
+    let blocked = false;
+    fs.rename = async (from, to) => {
+      if (String(to) === policyFile && !blocked) {
+        blocked = true;
+        assert.equal(JSON.parse(await fs.readFile(policyFile, 'utf8')).locks.length, 1, 'The existing policy must not be unlinked.');
+        assert.equal((await fs.stat(policyFile + '.lock')).isDirectory(), true);
+        throw Object.assign(new Error('Transient Windows sharing fixture'), { code: 'EPERM' });
+      }
+      return rename(from, to);
+    };
+    try { await locks.lock(second, 'file'); }
+    finally { fs.rename = rename; }
+    assert.equal(blocked, true);
+    const reopened = await connect();
+    assert.equal((await reopened.status(first)).protected, true);
+    assert.equal((await reopened.status(second)).protected, true);
+    await assert.rejects(fs.access(policyFile + '.lock'), { code: 'ENOENT' });
+    assert.equal(await reopened.unlock(second), true);
+  });
+
   it('retains locks after reopening from a different workspace context', async () => {
     const file = path.join(workspace, 'file.txt'); await fs.writeFile(file, 'manual');
     await (await connect()).lock(file, 'file');
