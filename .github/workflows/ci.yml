@@ -49,6 +49,11 @@ jobs:
       - run: npm test
       - run: npm run test:sandbox
         if: runner.os == 'macOS' || runner.os == 'Windows'
+      - name: Confined Windows CLI installation/version smoke (no sign-in or model call)
+        if: runner.os == 'Windows' && matrix.node == 22
+        run: node dist/test/checkManagedNetwork.js
+        env:
+          AI_FILE_GUARD_CLI_SMOKE: '1'
       - run: xvfb-run -a npm run test:integration
         if: runner.os == 'Linux'
       - run: npm run test:integration

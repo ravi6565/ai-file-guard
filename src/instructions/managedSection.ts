@@ -1,6 +1,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { retryWindowsSharing } from '../io/windowsSharing';
 
 export class ManagedSectionSynchronizer {
   public constructor(private readonly begin = '<!-- AI FILE GUARD:BEGIN -->', private readonly end = '<!-- AI FILE GUARD:END -->') {}
@@ -36,7 +37,7 @@ export class ManagedSectionSynchronizer {
       mode = stat.mode & 0o777;
     } catch (error) { if (!isMissing(error)) throw error; }
     let existing = '';
-    try { existing = await fs.readFile(filePath, 'utf8'); } catch (error) { if (!isMissing(error)) throw error; }
+    try { existing = await retryWindowsSharing(() => fs.readFile(filePath, 'utf8')); } catch (error) { if (!isMissing(error)) throw error; }
     const content = this.merge(existing, body);
     if (content === existing) return false;
     await canWrite(filePath);
@@ -44,12 +45,15 @@ export class ManagedSectionSynchronizer {
     try {
       await fs.writeFile(temporary, content, { encoding: 'utf8', mode, flag: 'wx' });
       await fs.chmod(temporary, mode);
-      const current = await fs.readFile(filePath, 'utf8').catch(error => { if (!isMissing(error)) throw error; return ''; });
-      if (current !== existing) throw new Error(`Instruction file changed during synchronization; retry: ${filePath}`);
-      await canWrite(filePath);
-      await fs.rename(temporary, filePath);
+      await retryWindowsSharing(async () => {
+        // Repeat conflict/dirty-buffer checks before every rename attempt.
+        const current = await fs.readFile(filePath, 'utf8').catch(error => { if (!isMissing(error)) throw error; return ''; });
+        if (current !== existing) throw new Error(`Instruction file changed during synchronization; retry: ${filePath}`);
+        await canWrite(filePath);
+        await fs.rename(temporary, filePath);
+      });
       return true;
-    } finally { await fs.rm(temporary, { force: true }); }
+    } finally { await retryWindowsSharing(() => fs.rm(temporary, { force: true })); }
   }
 }
 

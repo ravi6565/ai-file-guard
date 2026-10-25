@@ -48,7 +48,13 @@ export class ManagedSandbox {
     const temporary = path.join(sessionRoot, 'agent-tmp');
     await fs.mkdir(home, { recursive: true, mode: 0o700 });
     await fs.mkdir(temporary, { recursive: true, mode: 0o700 });
-    const writableRoots = [staging, await fs.realpath(home), await fs.realpath(temporary)];
+    const canonicalControl = await fs.realpath(this.controlRoot);
+    const canonicalHome = await fs.realpath(home);
+    const canonicalTemporary = await fs.realpath(temporary);
+    if (canonicalHome !== path.join(canonicalControl, 'agent-homes', workspaceId) || canonicalTemporary !== temporary) {
+      throw new Error('Unsafe sandbox home or temporary storage symlink.');
+    }
+    const writableRoots = [staging, canonicalHome, canonicalTemporary];
     if (writableRoots.some(writable => contains(original, writable) || contains(writable, original))) {
       throw new Error('Original project overlaps sandbox writable storage. Refusing to launch.');
     }

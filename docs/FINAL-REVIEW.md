@@ -4,7 +4,7 @@ Status: NOT APPROVED for Marketplace publication. Windows native/installed-packa
 
 ## Open release blockers
 
-1. Windows qualification: the private runtime build succeeded and fixes the stock Node AppContainer pipe loop ([upstream issue](https://github.com/nodejs/node/issues/66374)). Seven native checks, including child write denial, shell/npm, HTTPS and host-control denial, now pass. The deep-profile/long-path case and real VS Code terminal/installed-VSIX gates still require successful verification. Platform packages are not approved from skipped or partially passing tests.
+1. Windows qualification: the private runtime build succeeded and fixes the stock Node AppContainer pipe loop ([upstream issue](https://github.com/nodejs/node/issues/66374)). All eight native checks, including deep profiles/long files, child write denial, shell/npm, HTTPS and host-control denial, have passed on Windows CI. The real VS Code terminal denial test also passes. Windows sharing-error fixes, exact installed-VSIX acceptance and the CLI installation smoke gate still require a complete successful run. Platform packages are not approved from skipped or partially passing tests.
 2. Signed-in provider workflows: CLI installation/version smoke tests do not establish a working Codex/Copilot/Claude model task. Verify the supported provider workflow locally before advertising it. Ordinary AI chat extensions remain outside enforcement.
 
 ## Scope
@@ -20,14 +20,15 @@ Status: NOT APPROVED for Marketplace publication. Windows native/installed-packa
 - Corrected the LPAC process attribute against Microsoft's SDK: input attribute 15, not desktop-app-policy attribute 18. The native probe additionally requires a real AppContainer and LPAC token.
 - Replaced POSIX-only permission assumptions on Windows. Added a native test runner that works with both operating systems' shells.
 - Added installed-VSIX tests using a fresh temporary profile and the running package's capability state.
+- Rejected macOS home/temp symlink substitution before granting write roots. Initialized provider state from inside the confined child. Added Windows sharing retries with conflict/dirty-buffer checks before each instruction replacement.
 - Updated publisher/contact, privacy, supported workflow and candidate status. Generated local metadata, packages, dependencies and test installations remain excluded from Git.
 - Updated vulnerable development-tool dependencies. Scoped overrides keep VSCE on Azure Identity 4.13.0 (avoiding the affected MSAL 5–7.0 line) with patched CommonJS UUID, and Mocha on patched diff/serialize-javascript. These tools are not shipped as extension runtime dependencies. Revisit the overrides when upstream dependency ranges are fixed; CLI publisher authentication is not part of the manual-upload acceptance.
 
 ## Evidence and gates
 
 - TypeScript and unit/service tests pass locally; native tests skipped on another OS are not evidence.
-- macOS native enforcement (8 cases) and all 17 installed-VSIX tests pass on both current stable VS Code 1.143.1 and the declared minimum family (1.95.3) on macOS Apple Silicon. TypeScript checks and 50 local unit/service cases pass. After development-tool fixes, npm audit reports zero known vulnerabilities in the extension build/test dependency graph; the extension has no production npm dependencies.
-- Windows native tests have run on hosted Windows CI. Live locked-folder application/unlock, loopback denial, junction/hard-link rejection and unchanged original ACLs passed. Named-pipe control denial now passes. The private runtime fixes the upstream child-pipe loop; shell/npm and public HTTPS also pass. The complete Windows long-profile and installed-VSIX gates have not yet passed.
+- macOS native enforcement (9 cases) and all 17 installed-VSIX tests pass on both current stable VS Code 1.143.1 and the declared minimum family (1.95.3) on macOS Apple Silicon. TypeScript checks and 50 local unit/service cases pass. After development-tool fixes, npm audit reports zero known vulnerabilities in the extension build/test dependency graph; the extension has no production npm dependencies.
+- Windows native tests have run on hosted Windows CI. Live locked-folder application/unlock, loopback denial, junction/hard-link rejection and unchanged original ACLs passed. Named-pipe control denial now passes. The private runtime fixes the upstream child-pipe loop; shell/npm and public HTTPS also pass. The complete native gate and actual Windows terminal denial pass; final installed-VSIX and provider-installation qualification are still pending.
 - Actual signed-in Codex/Copilot/Claude CLI tasks require provider account acceptance; no model task has been performed by this release preparation.
 - Audit the final VSIX metadata, native resource inclusion, privacy/security text, and absence of local credentials/policy before upload.
 

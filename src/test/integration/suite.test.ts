@@ -7,6 +7,7 @@ import { KeyValueStore } from '../../core/manifestStore';
 import { LocalManifestStore } from '../../core/localManifestStore';
 import { LockManager } from '../../core/lockManager';
 import { PathResolver } from '../../core/pathResolver';
+import { retryWindowsSharing } from '../../io/windowsSharing';
 
 interface GuardAPI { scope: 'managed-agents-only'; capability(): { available: boolean; reason: string }; policyLocation: string; policyStatus(file: string): Promise<{ protected: boolean }>; }
 const nativePlatform = ['darwin', 'win32'].includes(process.platform);
@@ -20,9 +21,9 @@ suite('AI File Guard local policy', () => {
     return workspace;
   };
   const command = async (name: string, ...args: unknown[]) => {
-    const result = await vscode.commands.executeCommand<{ ok: boolean; error?: string; instructionsSynced?: boolean }>(name, ...args);
+    const result = await vscode.commands.executeCommand<{ ok: boolean; error?: string; instructionsSynced?: boolean; instructions?: { errors: unknown[] } }>(name, ...args);
     assert.equal(result?.ok, true, result?.error ?? 'Command should return its actual result.');
-    if (result?.instructionsSynced !== undefined) assert.equal(result.instructionsSynced, true, 'Instructions must be synchronized before returning from the command.');
+    if (result?.instructionsSynced !== undefined) assert.equal(result.instructionsSynced, true, `Instructions must be synchronized before returning from the command: ${JSON.stringify(result.instructions?.errors)}`);
     return result;
   };
 
@@ -60,7 +61,7 @@ suite('AI File Guard local policy', () => {
       const editor = await vscode.window.showTextDocument(uri);
       assert.equal(await editor.edit(edit => edit.insert(new vscode.Position(0, 0), 'manual edit\n')), true);
       assert.equal(await editor.document.save(), true);
-      await fs.writeFile(file, 'manual filesystem edit');
+      await retryWindowsSharing(() => fs.writeFile(file, 'manual filesystem edit'));
       // Reload the externally saved bytes before the next editor edit so VS
       // Code's ordinary "modified since" check does not cause a false failure.
       await vscode.commands.executeCommand('workbench.action.files.revert');

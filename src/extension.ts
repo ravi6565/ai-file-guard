@@ -312,6 +312,11 @@ export async function activate(context: vscode.ExtensionContext) {
         });
         managedTerminals.add(terminal);
         terminal.show();
+        // Initialize provider state inside the already confined child, never
+        // through host writes into potentially agent-controlled home paths.
+        terminal.sendText(process.platform === 'win32'
+          ? 'if not exist "%CODEX_HOME%" mkdir "%CODEX_HOME%"'
+          : 'mkdir -p "$CODEX_HOME"', true);
         terminal.sendText(process.platform === 'win32'
           ? 'echo AI File Guard: run your AI CLI here. Apply unlocked changes from the original VS Code window.'
           : 'printf "\\nAI File Guard: run your AI CLI here. Originals are OS read-only to this process. Apply unlocked changes from the original VS Code window.\\n"', true);
