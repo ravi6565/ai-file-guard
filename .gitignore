@@ -1,6 +1,8 @@
 # Dependencies and generated build/test output
 node_modules/
 dist/
+artifacts/
+resources/windows/runtime/
 out/
 coverage/
 .nyc_output/
@@ -8,6 +10,8 @@ coverage/
 
 # Packaged extensions and downloaded VS Code test installations
 *.vsix
+*.vsix.sha256
+*.vsix.json
 .vscode-test/
 .vscode-test-web/
 

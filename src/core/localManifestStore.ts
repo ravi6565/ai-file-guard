@@ -3,6 +3,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { ManifestRepository, validateManifest } from './manifestStore';
 import { LockEntry, LockManifest } from './types';
+import { retryWindowsSharing } from '../io/windowsSharing';
 
 // Machine-local, outside repositories and Settings Sync. The on-disk transaction
 // lock prevents two VS Code windows from overwriting each other's policies.
@@ -13,7 +14,7 @@ export class LocalManifestStore implements ManifestRepository {
   public load(): LockManifest { return this.current; }
   public async refresh(): Promise<LockManifest> {
     try {
-      this.current = validateManifest(JSON.parse(await fs.readFile(this.location, 'utf8')));
+      this.current = validateManifest(JSON.parse(await retryWindowsSharing(() => fs.readFile(this.location, 'utf8'))));
       this.seenFile = true;
     }
     catch (error) {
@@ -42,12 +43,14 @@ export class LocalManifestStore implements ManifestRepository {
       const next = validateManifest({ version: 1, locks: await update(current) });
       if (this.seenFile && JSON.stringify(next) === JSON.stringify(current)) return next;
       await fs.writeFile(temporary, JSON.stringify(next, null, 2), { flag: 'wx', mode: 0o600 });
-      await fs.rename(temporary, this.location);
+      // Keep the policy lease while Windows releases transient reader handles.
+      // Retry the same atomic replacement; never unlink the existing policy.
+      await retryWindowsSharing(() => fs.rename(temporary, this.location));
       this.current = next;
       this.seenFile = true;
       return next;
     } finally {
-      try { await fs.unlink(temporary); }
+      try { await retryWindowsSharing(() => fs.unlink(temporary)); }
       catch (error) { if (code(error) !== 'ENOENT') throw error; }
       finally { await fs.rmdir(lockDirectory); }
     }

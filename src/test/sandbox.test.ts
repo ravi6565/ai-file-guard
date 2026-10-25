@@ -26,7 +26,7 @@ describe('Managed sandbox profile', () => {
     assert.equal(env.SSH_AUTH_SOCK, undefined);
   });
   it('refuses unsupported platforms without launching an agent', async () => {
-    const result = await new ManagedSandbox('/unused', 'win32').verify();
+    const result = await new ManagedSandbox('/unused', 'linux').verify();
     assert.equal(result.available, false);
   });
 });
@@ -42,6 +42,21 @@ native('Native managed agent enforcement', function () {
   it('verifies real OS write denial while normal developer writes remain allowed', async () => {
     const result = await new ManagedSandbox(path.join(root, 'control')).verify();
     assert.equal(result.available, true, result.reason);
+  });
+  it('refuses substituted home/temp symlinks before granting another project writes', async () => {
+    const original = path.join(root, 'original'); const staged = path.join(root, 'session', 'workspace');
+    const elsewhere = path.join(root, 'another-project');
+    await fs.mkdir(original); await fs.mkdir(staged, { recursive: true }); await fs.mkdir(elsewhere);
+    const runtime = new ManagedSandbox(path.join(root, 'control'));
+    try {
+      const launch = await runtime.prepare(staged, original);
+      for (const target of [launch.environment.HOME, path.resolve(launch.environment.TMPDIR)]) {
+        await fs.rm(target, { recursive: true }); await fs.symlink(elsewhere, target);
+        await assert.rejects(runtime.prepare(staged, original), /Unsafe sandbox home or temporary storage/);
+        assert.deepEqual(await fs.readdir(elsewhere), []);
+        await fs.unlink(target); await fs.mkdir(target);
+      }
+    } finally { await runtime.dispose(); }
   });
   it('blocks write/create/delete/rename/atomic replacement and child-process bypasses', async () => {
     const original = path.join(root, 'original'); const staged = path.join(root, 'session', 'workspace');

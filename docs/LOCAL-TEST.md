@@ -1,14 +1,16 @@
-# Local acceptance test — 0.10
+# Native Windows/macOS acceptance test — 0.11 candidate
 
 ## Required execution path
 
 Use **AI File Guard: Open Protected AI Terminal** for AI work. The ordinary VS Code AI chat panels are not sandboxed by this extension. Testing in those panels will bypass this boundary.
 
-The original project remains open for your manual edits. The protected terminal works in a separate copy. Its original-project filesystem writes are denied by macOS. Proposed changes enter originals only through **Review and Apply Agent Changes**.
+The original project remains open for your manual edits. The protected terminal works in a separate copy. Its original-project filesystem writes must be denied by the native backend. Proposed changes enter originals only through **Review and Apply Agent Changes**.
 
 ## Install and verify
 
-Install `ai-file-guard-0.10.1.vsix` through **Extensions: Install from VSIX**, then reload all VS Code windows using this extension. Run **AI File Guard: Verify Managed Sandbox**. It must report verified OS write denial. If verification fails, no unconfined agent is launched.
+Disable the earlier local `ai-file-guard.ai-file-guard` extension. Install the 0.11.0 pre-release VSIX built for your host through **Extensions: Install from VSIX**, then reload all VS Code windows using this extension. The Marketplace identity is `ravikiranv.ai-file-guard`. Saved locks import once from the old identity in the same profile; sessions/credentials do not. Run **AI File Guard: Verify Managed Sandbox**. It must report verified OS write denial. If verification fails, no unconfined agent is launched. Automated Windows CI gates pass; this probe must still succeed on your own device.
+
+On Windows, use local VS Code desktop with functioning LPAC APIs, the Windows .NET Framework 4.8 compiler, built-in tar.exe, and the private runtime included in the Windows x64 package. Docker, WSL, administrator elevation and loopback exemptions are not required. The protected terminal uses cmd.exe and a private Node.js/npm runtime; install AI CLIs inside the isolated home. Host-installed CLI shims are not automatically imported. Windows uses its internet-client network capability instead of the macOS proxy. Test real provider sign-in separately.
 
 Lock an original file or folder. The Explorer tooltip and status bar identify the scope as managed agents. Manual editing/saving in the original editor should still work.
 
@@ -24,7 +26,7 @@ Start a fresh AI session to load the changed instructions. [Codex reads its inst
 
 Open Protected AI Terminal. Installed CLIs on PATH can be invoked there. Alternatively, install a CLI inside the protected home. npm global installations are redirected to that isolated home; they do not alter your normal global packages.
 
-For Codex, installation has been smoke-tested inside the runtime:
+Codex installation/version smoke has passed inside both platform runtimes (Windows CI used 0.164.0). Signed-in provider workflows still require your acceptance:
 
 ```sh
 npm install -g @openai/codex
@@ -41,7 +43,7 @@ Other AI CLIs must likewise run inside this terminal and use their own compatibl
 
 ## Check a locked original
 
-Ask the agent to alter the locked resource. An attempt against its absolute original path must fail with an OS permission error. The agent may still edit a proposal in its copy; that does not change the original.
+Ask the agent to alter the locked resource. An attempt against its absolute original path must fail with an OS permission error. The agent may still edit a proposal in its copy; that does not change the original. On Windows, also test drive-letter paths, spaces, junctions, hard links, child commands, named pipes and loopback access. Native tests must verify LPAC token state and must not be counted as passed when skipped on another OS.
 
 Run **Preview Agent Changes** in the original window. The locked proposal should say DENY. Run **Review and Apply Agent Changes** and confirm: the original must remain unchanged.
 
@@ -61,6 +63,6 @@ Keep managed sections out of Git commits if you want instructions to remain loca
 
 ## Known limits for this local build
 
-Only the macOS controlled-terminal path is implemented. Normal external AI sessions remain unrestricted. Empty directories are supported, but file/directory kind conversion and atomic rename grouping are not. Independent allowed changes can apply even when other proposals are rejected. A crashed cross-window lease can require recovery; do not delete it while another window is applying changes.
+The macOS controlled-terminal path is verified locally, and Windows LPAC passes native and installed-VSIX CI acceptance. Local signed-in provider acceptance remains open. Normal external AI sessions remain unrestricted. Empty directories are supported, but file/directory kind conversion and atomic rename grouping are not. Independent allowed changes can apply even when other proposals are rejected. A crashed cross-window lease can require recovery; do not delete it while another window is applying changes.
 
-The macOS sandbox interface is deprecated by Apple. A verified supported runtime is a requirement, not an assumption. CLIs must honor HTTP(S)_PROXY and reach public HTTPS endpoints on port 443; direct TCP, private/local destinations and IPv6-only endpoints are not supported. Windows/Linux backends, real provider-account flows and broader release/security review remain outside the current local validation.
+The macOS sandbox interface is deprecated by Apple. A verified supported runtime is a requirement, not an assumption. On macOS, CLIs must honor HTTP(S)_PROXY and reach public HTTPS endpoints on port 443; direct TCP, private/local destinations and IPv6-only endpoints are not supported. On Windows, LPAC internet-client capabilities and native local-service denial must pass on a real host. Linux enforcement, real provider-account flows and broader release/security review remain outside current acceptance.

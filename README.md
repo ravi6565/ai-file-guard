@@ -1,8 +1,16 @@
 # AI File Guard
 
-Version 0.10 adds a working macOS managed-agent sandbox and file/folder lock workflow. Your normal editor stays writable. AI tools launched in **Protected AI Terminal** cannot write original projects directly; the apply service rejects changes to locked originals.
+**Windows x64 + macOS Apple Silicon preview candidate · Publisher: ravikiranv · Support: [ravikiranv8919@gmail.com](mailto:ravikiranv8919@gmail.com)**
+
+AI File Guard 0.11 combines local file/folder locks, synchronized agent instructions, and native managed AI terminals. Your normal editor stays writable. AI tools launched in **Protected AI Terminal** cannot write original projects directly; the apply service rejects changes to locked originals.
 
 **Use the Protected AI Terminal for protection. Ordinary Codex, Copilot or Claude chat extensions in your unrestricted VS Code window are outside this boundary. This extension does not intercept those sessions.**
+
+Release targets are local VS Code desktop on macOS and Windows, with no Docker or WSL dependency. macOS uses `sandbox-exec`; Windows uses a native less-privileged AppContainer (LPAC) and a kill-on-close process job. Every machine must pass native token/write-denial verification; failed isolation never falls back to an unrestricted terminal. Native Windows, real-terminal and installed-VSIX checks pass on hosted Windows CI. Signed-in provider workflows still require local acceptance. Linux and remote/browser workspaces have no supported enforcement backend. Generated instruction files provide cooperative guidance, not universal AI write blocking. Independent security review and signed-in provider acceptance remain open.
+
+On Windows, the .NET Framework compiler bundled with Windows builds the launcher locally. The Windows x64 package includes a private Node.js/npm runtime with the upstream AppContainer pipe fix; it does not replace your installed Node. Untested stock runtimes are not used as a fallback. Windows code grants access only to private copies/home/temp and runtime files; it does not change original-project permissions. No administrator elevation or loopback exemptions are requested. Windows uses the OS internet-client network capability rather than the macOS CONNECT proxy. Windows tests cover child processes, aliases, long paths and host-control denial. Codex 0.164.0 installation/version smoke passed inside LPAC without sign-in or a model request.
+
+If upgrading from the earlier local build (`ai-file-guard.ai-file-guard`), disable it before enabling `ravikiranv.ai-file-guard`. On first activation, saved local locks are imported from its storage in the same VS Code profile; later unlocks are not re-imported. Verify the imported locks before uninstalling the old extension or deleting its data. Existing terminals, review sessions, agent credentials and old permission records are not migrated. Close old terminals and start a new Protected AI Terminal; sign in there again as needed. If upgrading from a 0.8 build with filesystem locks, use its Restore Legacy File Permissions command before removing it.
 
 ## Local test workflow
 
@@ -18,7 +26,7 @@ See `docs/LOCAL-TEST.md` for a reproducible file/folder test and CLI setup.
 
 ## What is enforced
 
-The macOS profile starts with deny-by-default permissions. It permits writes only inside the agent copy, a separate per-project agent home, and session temporary storage. Child processes inherit the restriction. Shell/Git writes to originals and policy-file tampering are denied. General TCP and host control-service access are not granted. Provider HTTPS uses a dedicated CONNECT proxy that accepts public hostnames on port 443, rejects private/loopback destinations, and pins validated IPv4 addresses. CLIs must support standard HTTP(S)_PROXY settings. No arbitrary editor IPC, UNIX socket access, Apple Events or incoming network listeners are granted to the child.
+The macOS profile starts with deny-by-default permissions. It permits writes only inside the agent copy, a separate per-project agent home, and session temporary storage. Child processes inherit the restriction. Shell/Git writes to originals and policy-file tampering are denied. General TCP and host control-service access are not granted. On macOS, provider HTTPS uses a dedicated CONNECT proxy that accepts public hostnames on port 443, rejects private/loopback destinations, and pins validated IPv4 addresses. CLIs must support standard HTTP(S)_PROXY settings. No arbitrary editor IPC, UNIX socket access, Apple Events or incoming network listeners are granted to the macOS child.
 
 The trusted extension-host service applies checked proposals. It checks live policy under a shared cross-window lease, symlink/junction containment, staged hashes and concurrent developer edits. It handles file writes/creates/deletes and directory creation/removal, and supports repeated application within a session.
 
@@ -36,7 +44,7 @@ These instruction projections are ordinary repository files. Committing their ma
 
 ## Scope and requirements
 
-This local build supports macOS with a functioning `sandbox-exec` runtime. Runtime and profile checks must pass; unsupported platforms never launch an unconfined fallback. Apple marks this interface deprecated, so support must be revalidated on OS updates.
+Native macOS and Windows runtime checks must pass; unsupported platforms never launch an unconfined fallback. Apple marks `sandbox-exec` deprecated, so support must be revalidated on OS updates. Windows x64 requires functioning LPAC APIs, .NET Framework 4.8 with its compiler, built-in tar.exe, and the compatible private runtime included in the tested Windows package. No Windows support claim is established by macOS-only tests.
 
 The profile can read local files. Provider tools can send data using outbound networking according to their own behavior. Do not connect external privileged services that can write originals on an agent's behalf.
 
@@ -50,9 +58,15 @@ npm run lint
 npm run test:unit
 npm run test:sandbox
 npm run test:integration
-npm run package
+npm run package:preview
 ```
 
-Native tests require macOS and an execution context permitted to launch the OS sandbox. Unit tests do not count skipped native tests as proof. The optional `dist/test/checkManagedNetwork.js` diagnostic verifies public npm DNS/HTTPS; setting `AI_FILE_GUARD_CLI_SMOKE=1` additionally installs/runs Codex CLI only in a temporary sandbox home, without a model request or sign-in.
+Native tests require the corresponding supported host and an execution context permitted to launch its OS sandbox. Windows tests also require the generated private runtime; see resources/windows/RUNTIME.md. Unit tests do not count skipped native tests as proof. The optional `dist/test/checkManagedNetwork.js` diagnostic verifies public npm DNS/HTTPS; setting `AI_FILE_GUARD_CLI_SMOKE=1` additionally installs/runs Codex CLI only in a temporary sandbox home, without a model request or sign-in.
 
-Marketplace publication is deferred for local testing. Production release still requires broader platform/provider acceptance, lease crash recovery, security review and publisher metadata.
+Build the Marketplace candidate with `npm run package:preview`. It writes the host-targeted VSIX, SHA-256 checksum and metadata to `artifacts/`; Windows packaging validates the bundled compatible runtime and macOS packages exclude Windows binaries. See `docs/DEPLOYMENT.md` for exact acceptance and manual-upload steps. Both the Preview label and pre-release channel are set. Platform-specific release artifacts must be packaged and tested on their supported hosts; a universal candidate is not proof of cross-platform enforcement. Publishing remains a manual action after both native acceptance gates pass. A build passing local checks is not a security certification or proof of every provider's signed-in workflow.
+
+## Privacy and support
+
+AI File Guard does not call a model or upload source itself. Local policy, copies, audits and isolated agent credentials remain in extension storage; uninstalling may leave them behind. Agent tools may read local files and send data to their providers. Generated instruction files contain relative locked paths and can be read by those tools or shared through Git if committed. Keep local instruction sections out of commits when they must stay private.
+
+For support or private vulnerability reports, email [ravikiranv8919@gmail.com](mailto:ravikiranv8919@gmail.com). Do not include credentials or sensitive project content. The source repository is currently private; email is the public support route.

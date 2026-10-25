@@ -36,7 +36,7 @@ describe('Dynamic AI instructions', () => {
       assert.match(text, /File: "one.ts"/); assert.match(text, /File: "two.ts"/);
     }
     assert.ok((await fs.readFile(file, 'utf8')).startsWith(prefix));
-    assert.equal((await fs.stat(file)).mode & 0o777, 0o640);
+    if (process.platform !== 'win32') assert.equal((await fs.stat(file)).mode & 0o777, 0o640);
     assert.equal((await coordinator.sync([root], locks)).updated.length, 0, 'Unchanged policy must not rewrite files.');
     await coordinator.sync([root], [locks[1]]);
     assert.doesNotMatch(await fs.readFile(file, 'utf8'), /File: "one.ts"/);

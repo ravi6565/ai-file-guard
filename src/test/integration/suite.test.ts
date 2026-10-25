@@ -7,10 +7,10 @@ import { KeyValueStore } from '../../core/manifestStore';
 import { LocalManifestStore } from '../../core/localManifestStore';
 import { LockManager } from '../../core/lockManager';
 import { PathResolver } from '../../core/pathResolver';
-import { ProtectionDecorations } from '../../ui/protectionDecorations';
-import { ProtectedFilesTree } from '../../ui/protectedFilesTree';
+import { retryWindowsSharing } from '../../io/windowsSharing';
 
 interface GuardAPI { scope: 'managed-agents-only'; capability(): { available: boolean; reason: string }; policyLocation: string; policyStatus(file: string): Promise<{ protected: boolean }>; }
+const nativePlatform = ['darwin', 'win32'].includes(process.platform);
 
 suite('AI File Guard local policy', () => {
   let api: GuardAPI;
@@ -21,14 +21,14 @@ suite('AI File Guard local policy', () => {
     return workspace;
   };
   const command = async (name: string, ...args: unknown[]) => {
-    const result = await vscode.commands.executeCommand<{ ok: boolean; error?: string; instructionsSynced?: boolean }>(name, ...args);
+    const result = await vscode.commands.executeCommand<{ ok: boolean; error?: string; instructionsSynced?: boolean; instructions?: { errors: unknown[] } }>(name, ...args);
     assert.equal(result?.ok, true, result?.error ?? 'Command should return its actual result.');
-    if (result?.instructionsSynced !== undefined) assert.equal(result.instructionsSynced, true, 'Instructions must be synchronized before returning from the command.');
+    if (result?.instructionsSynced !== undefined) assert.equal(result.instructionsSynced, true, `Instructions must be synchronized before returning from the command: ${JSON.stringify(result.instructions?.errors)}`);
     return result;
   };
 
   test('activates and verifies the scoped managed sandbox', async () => {
-    const extension = vscode.extensions.getExtension<GuardAPI>('ai-file-guard.ai-file-guard');
+    const extension = vscode.extensions.getExtension<GuardAPI>('ravikiranv.ai-file-guard');
     assert.ok(extension);
     api = await extension.activate();
     const commands = await vscode.commands.getCommands(true);
@@ -36,7 +36,7 @@ suite('AI File Guard local policy', () => {
       assert.ok(commands.includes(`aiFileGuard.${name}`));
     }
     const result = await vscode.commands.executeCommand<{ capability: { available: boolean } }>('aiFileGuard.showStatus');
-    assert.equal(result?.capability.available, process.platform === 'darwin', api.capability().reason);
+    assert.equal(result?.capability.available, nativePlatform, api.capability().reason);
     assert.equal(api.scope, 'managed-agents-only');
     assert.ok(!api.policyLocation.startsWith(root() + path.sep), 'Policy must live outside the repository.');
   });
@@ -55,13 +55,13 @@ suite('AI File Guard local policy', () => {
     const uri = vscode.Uri.file(file);
     const mode = (await fs.stat(file)).mode & 0o777;
     for (let cycle = 0; cycle < 2; cycle++) {
-      await command(process.platform === 'darwin' ? 'aiFileGuard.lock' : 'aiFileGuard.addReviewPolicy', uri);
+      await command(nativePlatform ? 'aiFileGuard.lock' : 'aiFileGuard.addReviewPolicy', uri);
       assert.equal((await api.policyStatus(file)).protected, true);
       assert.equal((await fs.stat(file)).mode & 0o777, mode);
       const editor = await vscode.window.showTextDocument(uri);
       assert.equal(await editor.edit(edit => edit.insert(new vscode.Position(0, 0), 'manual edit\n')), true);
       assert.equal(await editor.document.save(), true);
-      await fs.writeFile(file, 'manual filesystem edit');
+      await retryWindowsSharing(() => fs.writeFile(file, 'manual filesystem edit'));
       // Reload the externally saved bytes before the next editor edit so VS
       // Code's ordinary "modified since" check does not cause a false failure.
       await vscode.commands.executeCommand('workbench.action.files.revert');
@@ -122,10 +122,10 @@ suite('AI File Guard local policy', () => {
       for (const setting of [undefined, 'review', 'enforced']) {
         await configuration.update('protectionMode', setting, vscode.ConfigurationTarget.Global);
         const result = await vscode.commands.executeCommand<{ ok: boolean; enforced: boolean; scope: string; error?: string }>('aiFileGuard.lock', vscode.Uri.file(file));
-        assert.equal(result?.ok, process.platform === 'darwin', result?.error);
-        assert.equal(result?.enforced, process.platform === 'darwin');
-        assert.equal((await api.policyStatus(file)).protected, process.platform === 'darwin');
-        if (process.platform === 'darwin') {
+        assert.equal(result?.ok, nativePlatform, result?.error);
+        assert.equal(result?.enforced, nativePlatform);
+        assert.equal((await api.policyStatus(file)).protected, nativePlatform);
+        if (nativePlatform) {
           assert.equal(result?.scope, 'managed-agents-only');
           await command('aiFileGuard.unlock', vscode.Uri.file(file));
         }
@@ -140,28 +140,33 @@ suite('AI File Guard local policy', () => {
     try {
       const before = await fs.readFile(api.policyLocation, 'utf8');
       const status = await vscode.commands.executeCommand<{ enforced: boolean; scope: string; policyStatus: { protected: boolean } }>('aiFileGuard.showStatus', vscode.Uri.file(file));
-      assert.equal(status?.enforced, process.platform === 'darwin');
+      assert.equal(status?.enforced, nativePlatform);
       assert.equal(status?.scope, 'managed-agents-only');
       assert.equal(status?.policyStatus.protected, true);
       assert.equal(await fs.readFile(api.policyLocation, 'utf8'), before);
       const store = new LocalManifestStore(api.policyLocation);
       await store.refresh();
       const locks = new LockManager(store, new PathResolver());
-      const decorations = new ProtectionDecorations(locks);
-      const tree = new ProtectedFilesTree(locks);
+      // Use packaged UI code and the running extension's capability reader.
+      // Windows drive-letter casing can otherwise duplicate Node's module cache.
+      const extension = vscode.extensions.getExtension('ravikiranv.ai-file-guard')!;
+      const { ProtectionDecorations } = require(path.join(extension.extensionPath, 'dist', 'ui', 'protectionDecorations')) as typeof import('../../ui/protectionDecorations');
+      const { ProtectedFilesTree } = require(path.join(extension.extensionPath, 'dist', 'ui', 'protectedFilesTree')) as typeof import('../../ui/protectedFilesTree');
+      const decorations = new ProtectionDecorations(locks, () => api.capability().available);
+      const tree = new ProtectedFilesTree(locks, () => api.capability().available);
       try {
         const decoration = await decorations.provideFileDecoration(vscode.Uri.file(file));
-        assert.equal(decoration?.badge, process.platform === 'darwin' ? '🔒' : '!');
+        assert.equal(decoration?.badge, nativePlatform ? '🔒' : '!');
         assert.match(String(decoration?.tooltip), /managed|sandbox/);
         const entry = locks.all().find(item => item.displayPath.endsWith('protected.txt'));
         assert.ok(entry);
         const item = tree.getTreeItem(entry);
-        assert.equal((item.iconPath as vscode.ThemeIcon).id, process.platform === 'darwin' ? 'lock' : 'warning');
+        assert.equal((item.iconPath as vscode.ThemeIcon).id, nativePlatform ? 'lock' : 'warning');
       } finally { decorations.dispose(); tree.dispose(); }
     } finally { await command('aiFileGuard.unlock', vscode.Uri.file(file)); }
   });
 
-  (process.platform === 'darwin' ? test : test.skip)('Protected AI Terminal actually denies original writes', async () => {
+  (nativePlatform ? test : test.skip)('Protected AI Terminal actually denies original writes', async () => {
     const file = path.join(root(), 'managed-terminal.txt');
     await fs.writeFile(file, 'original');
     await command('aiFileGuard.lock', vscode.Uri.file(file));
@@ -175,7 +180,9 @@ suite('AI File Guard local policy', () => {
     const quoted = (value: string) => "'" + value.replaceAll("'", "'\\''") + "'";
     try {
       await terminal.processId;
-      terminal.sendText('if printf bad > ' + quoted(file) + '; then printf ESCAPED > ' + quoted(marker) + '; else printf DENIED > ' + quoted(marker) + '; fi', true);
+      terminal.sendText(process.platform === 'win32'
+        ? `node -e "try{require('fs').writeFileSync(process.argv[1],'bad');require('fs').writeFileSync(process.argv[2],'ESCAPED')}catch(e){require('fs').writeFileSync(process.argv[2],'DENIED')}" "${file}" "${marker}"`
+        : 'if printf bad > ' + quoted(file) + '; then printf ESCAPED > ' + quoted(marker) + '; else printf DENIED > ' + quoted(marker) + '; fi', true);
       let observed = '';
       for (let attempt = 0; attempt < 150; attempt++) {
         observed = await fs.readFile(marker, 'utf8').catch(() => '');
@@ -184,6 +191,25 @@ suite('AI File Guard local policy', () => {
       }
       assert.equal(observed, 'DENIED', 'The actual VS Code terminal must run inside the OS sandbox.');
       assert.equal(await fs.readFile(file, 'utf8'), 'original');
+      const interruptMarker = path.join(result!.session.stagingRoot, 'interrupt-result.txt');
+      const sendNode = (script: string) => terminal.sendText(process.platform === 'win32'
+        ? `node -e "${script}" "${interruptMarker}"`
+        : `node -e ${quoted(script)} ${quoted(interruptMarker)}`, true);
+      const awaitMarker = async (expected: string) => {
+        for (let attempt = 0; attempt < 150; attempt++) {
+          if (await fs.readFile(interruptMarker, 'utf8').catch(() => '') === expected) return;
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
+        assert.fail(`Protected terminal did not report ${expected}.`);
+      };
+      sendNode("process.once('SIGINT',()=>{require('fs').writeFileSync(process.argv[1],'STOPPED');process.exit(0)});require('fs').writeFileSync(process.argv[1],'RUNNING');setInterval(()=>{},1000)");
+      await awaitMarker('RUNNING');
+      terminal.show();
+      await vscode.commands.executeCommand('workbench.action.terminal.sendSequence', { text: '\u0003' });
+      await awaitMarker('STOPPED');
+      assert.ok(vscode.window.terminals.includes(terminal), 'Interrupting an agent must keep its protected terminal open.');
+      sendNode("require('fs').writeFileSync(process.argv[1],'RESUMED')");
+      await awaitMarker('RESUMED');
       await fs.writeFile(file, 'developer edit still allowed');
       assert.equal(await fs.readFile(file, 'utf8'), 'developer edit still allowed');
     } finally {
@@ -192,7 +218,7 @@ suite('AI File Guard local policy', () => {
     }
   });
 
-  (process.platform === 'darwin' ? test : test.skip)('preview is read-only and updates locked proposals after unlock', async () => {
+  (nativePlatform ? test : test.skip)('preview is read-only and updates locked proposals after unlock', async () => {
     assert.ok(managedStaging);
     const file = path.join(root(), 'protected.txt');
     const original = await fs.readFile(file, 'utf8');
@@ -243,7 +269,7 @@ suite('AI File Guard local policy', () => {
     const one = path.join(root(), 'protected.txt');
     const folder = path.join(root(), 'nested-repo', 'docs');
     const instructionFiles = ['AGENTS.md', '.github/copilot-instructions.md', 'CLAUDE.md', '.ai-file-guard/INSTRUCTIONS.md'];
-    await command(process.platform === 'darwin' ? 'aiFileGuard.lock' : 'aiFileGuard.addReviewPolicy', undefined, [vscode.Uri.file(one), vscode.Uri.file(folder)]);
+    await command(nativePlatform ? 'aiFileGuard.lock' : 'aiFileGuard.addReviewPolicy', undefined, [vscode.Uri.file(one), vscode.Uri.file(folder)]);
     for (const relative of instructionFiles) {
       const text = await fs.readFile(path.join(root(), relative), 'utf8');
       assert.match(text, /File: "protected.txt"/);

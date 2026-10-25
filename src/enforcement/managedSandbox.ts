@@ -4,11 +4,12 @@ import { execFile as execFileCallback } from 'node:child_process';
 import { promisify } from 'node:util';
 import { randomUUID, createHash } from 'node:crypto';
 import { ManagedNetworkProxy } from './networkProxy';
+import { WindowsSandbox } from './windowsSandbox';
 
 const execFile = promisify(execFileCallback);
 export interface SandboxCapability {
   readonly available: boolean;
-  readonly backend: 'macos-seatbelt' | 'unsupported';
+  readonly backend: 'macos-seatbelt' | 'windows-lpac' | 'unsupported';
   readonly scope: 'managed-agents-only';
   readonly reason: string;
 }
@@ -34,6 +35,10 @@ export class ManagedSandbox {
   public async prepare(stagingRoot: string, originalRoot: string, protectedCopies: readonly string[] = []): Promise<SandboxLaunch> {
     const capability = await this.verify();
     if (!capability.available) throw new Error(capability.reason);
+    if (this.platform === 'win32') {
+      if (protectedCopies.length) throw new Error('Read-only proposal copies are not supported by the Windows backend. Original protection is enforced through LPAC and the broker.');
+      return new WindowsSandbox(this.controlRoot).prepare(stagingRoot, originalRoot);
+    }
     const original = await fs.realpath(originalRoot);
     const staging = await fs.realpath(stagingRoot);
     if (contains(original, staging) || contains(staging, original)) throw new Error('Sandbox workspace and original project must be separate.');
@@ -43,7 +48,13 @@ export class ManagedSandbox {
     const temporary = path.join(sessionRoot, 'agent-tmp');
     await fs.mkdir(home, { recursive: true, mode: 0o700 });
     await fs.mkdir(temporary, { recursive: true, mode: 0o700 });
-    const writableRoots = [staging, await fs.realpath(home), await fs.realpath(temporary)];
+    const canonicalControl = await fs.realpath(this.controlRoot);
+    const canonicalHome = await fs.realpath(home);
+    const canonicalTemporary = await fs.realpath(temporary);
+    if (canonicalHome !== path.join(canonicalControl, 'agent-homes', workspaceId) || canonicalTemporary !== temporary) {
+      throw new Error('Unsafe sandbox home or temporary storage symlink.');
+    }
+    const writableRoots = [staging, canonicalHome, canonicalTemporary];
     if (writableRoots.some(writable => contains(original, writable) || contains(writable, original))) {
       throw new Error('Original project overlaps sandbox writable storage. Refusing to launch.');
     }
@@ -64,7 +75,8 @@ export class ManagedSandbox {
 
   private async probe(): Promise<SandboxCapability> {
     const base = { scope: 'managed-agents-only' as const };
-    if (this.platform !== 'darwin') return { ...base, available: false, backend: 'unsupported', reason: 'This build requires the macOS sandbox runtime. No unconfined fallback will be launched.' };
+    if (this.platform === 'win32') return new WindowsSandbox(this.controlRoot).verify();
+    if (this.platform !== 'darwin') return { ...base, available: false, backend: 'unsupported', reason: 'Managed isolation requires Windows LPAC or macOS sandbox-exec. No unconfined fallback will be launched.' };
     const probeRoot = path.join(this.controlRoot, 'probes', randomUUID());
     try {
       await fs.access('/usr/bin/sandbox-exec');
