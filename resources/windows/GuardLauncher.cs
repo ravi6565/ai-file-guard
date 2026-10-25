@@ -186,6 +186,10 @@ public static class GuardLauncher
 
     private static void GrantPrivateTree(string root, SecurityIdentifier identity, bool writable)
     {
+        // Enumeration below uses extended paths to avoid MAX_PATH truncation.
+        // Compare resolved handles using the same ordinary canonical spelling.
+        if (root.StartsWith("\\\\?\\UNC\\", StringComparison.OrdinalIgnoreCase)) root = "\\\\" + root.Substring(8);
+        else if (root.StartsWith("\\\\?\\", StringComparison.Ordinal)) root = root.Substring(4);
         if (root == Path.GetPathRoot(root)) throw new ArgumentException("Cannot grant a drive root.");
         // Open without following the final reparse point, verify the handle's
         // actual path, and modify security through that SAME handle. A directory
@@ -255,7 +259,7 @@ public static class GuardLauncher
             if (writable && !metadataOnly) SetLowIntegrity(handle, directory);
         }
         finally { CloseHandle(handle); }
-        if (directory) foreach (string child in Directory.GetFileSystemEntries(root)) GrantPrivateTree(child, identity, writable);
+        if (directory) foreach (string child in Directory.GetFileSystemEntries(extended)) GrantPrivateTree(child, identity, writable);
     }
 
     private static void SetLowIntegrity(IntPtr target, bool directory)

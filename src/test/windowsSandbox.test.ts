@@ -97,6 +97,15 @@ native('Native Windows LPAC enforcement', function () {
     assert.equal(network.stdout, 'HTTPS_OK');
   });
 
+  it('grants private npm trees beyond MAX_PATH without changing original permissions', async () => {
+    const control = path.join(root, 'profile-'.repeat(10), 'globalStorage', 'runtime');
+    const deepRuntime = new WindowsSandbox(control);
+    const tools = await deepRuntime.prepareNodeRuntime(original);
+    const launch = await deepRuntime.prepareCommand(staged, original, path.join(tools, 'node.exe'), ['-e', "process.stdout.write('LONG_PATH_OK')"], tools);
+    const result = await execFile(launch.executable, launch.arguments, { cwd: launch.cwd, env: launch.environment, timeout: 45_000, maxBuffer: 128 * 1024 });
+    assert.equal(result.stdout, 'LONG_PATH_OK');
+  });
+
   it('denies host loopback control services without adding network exemptions', async () => {
     let connected = false;
     const server = createServer(socket => { socket.on('error', () => undefined); connected = true; socket.end('host control'); });
