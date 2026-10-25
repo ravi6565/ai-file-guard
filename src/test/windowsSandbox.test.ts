@@ -7,7 +7,7 @@ import { execFile as execFileCallback } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createServer, connect } from 'node:net';
 import { WindowsSandbox, windowsEnvironment, windowsSystemExecutable } from '../enforcement/windowsSandbox';
-import { ManagedSandbox } from '../enforcement/managedSandbox';
+import { ManagedSandbox, SandboxLaunch } from '../enforcement/managedSandbox';
 import { LockManager } from '../core/lockManager';
 import { LocalManifestStore } from '../core/localManifestStore';
 import { PathResolver } from '../core/pathResolver';
@@ -37,11 +37,12 @@ native('Native Windows LPAC enforcement', function () {
   let staged: string;
   let runtime: WindowsSandbox;
   let nodeRuntime: string;
-  const run = async (script: string, args: string[] = []) => {
-    const launch = await runtime.prepareCommand(staged, original, path.join(nodeRuntime, 'node.exe'), ['-e', script, ...args], nodeRuntime);
-    return execFile(launch.executable, launch.arguments, { cwd: launch.cwd, env: launch.environment, timeout: 45_000, maxBuffer: 1024 * 1024 }).catch(error => {
+  const execute = (launch: SandboxLaunch) => execFile(launch.executable, launch.arguments, { cwd: launch.cwd, env: launch.environment, timeout: 45_000, maxBuffer: 1024 * 1024 }).catch(error => {
       throw new Error(`${error.message}\nNative diagnostic: ${JSON.stringify({ code: error.code, signal: error.signal, killed: error.killed, stdout: String(error.stdout).slice(-2048), stderr: String(error.stderr).slice(-2048) })}`);
     });
+  const run = async (script: string, args: string[] = []) => {
+    const launch = await runtime.prepareCommand(staged, original, path.join(nodeRuntime, 'node.exe'), ['-e', script, ...args], nodeRuntime);
+    return execute(launch);
   };
   beforeEach(async () => {
     root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'guard windows spaces & ')));
@@ -91,7 +92,7 @@ native('Native Windows LPAC enforcement', function () {
 
   it('runs the protected command shell, npm shim and public registry HTTPS', async () => {
     const launch = await runtime.prepareCommand(staged, original, windowsSystemExecutable('cmd.exe'), ['/d', '/q', '/c', 'npm --version'], nodeRuntime);
-    const result = await execFile(launch.executable, launch.arguments, { cwd: launch.cwd, env: launch.environment, timeout: 30_000, maxBuffer: 128 * 1024 });
+    const result = await execute(launch);
     assert.match(result.stdout.trim(), /^\d+\.\d+\.\d+$/);
     const network = await run(`require('https').get('https://registry.npmjs.org/-/ping',response=>{response.resume();if(response.statusCode!==200)process.exit(83);response.on('end',()=>process.stdout.write('HTTPS_OK'))}).on('error',error=>{console.error(error.message);process.exitCode=84}).setTimeout(10000,function(){this.destroy(Error('registry timeout'))});`);
     assert.equal(network.stdout, 'HTTPS_OK');
@@ -104,7 +105,7 @@ native('Native Windows LPAC enforcement', function () {
     const longFile = path.join(tools, 'node_modules', 'npm', 'node_modules', '@npmcli', 'config', 'lib', 'index.js');
     assert.ok(longFile.length > 260, 'The fixture must exercise a real npm file beyond MAX_PATH.');
     const launch = await deepRuntime.prepareCommand(staged, original, path.join(tools, 'node.exe'), ['-e', "require('fs').readFileSync(process.argv[1]);process.stdout.write('LONG_PATH_OK')", longFile], tools);
-    const result = await execFile(launch.executable, launch.arguments, { cwd: launch.cwd, env: launch.environment, timeout: 45_000, maxBuffer: 128 * 1024 });
+    const result = await execute(launch);
     assert.equal(result.stdout, 'LONG_PATH_OK');
   });
 

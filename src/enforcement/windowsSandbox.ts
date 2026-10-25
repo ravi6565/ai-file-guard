@@ -141,7 +141,9 @@ export class WindowsSandbox {
 
   private async compileLauncher(): Promise<string> {
     const source = path.resolve(__dirname, '..', '..', 'resources', 'windows', 'GuardLauncher.cs');
-    const hash = createHash('sha256').update(await fs.readFile(source)).digest('hex');
+    // CLR also probes an adjacent .exe.config path before Main, so leave room
+    // for that suffix in nested VS Code profiles (not just the executable).
+    const hash = createHash('sha256').update(await fs.readFile(source)).digest('hex').slice(0, 32);
     const directory = path.join(this.controlRoot, 'launchers');
     await fs.mkdir(directory, { recursive: true });
     const launcher = path.join(directory, `guard-${hash}.exe`);

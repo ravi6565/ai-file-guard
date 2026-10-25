@@ -28,3 +28,10 @@ Set `RUNNER_TEMP` to a temporary path without spaces before invoking the script
 outside CI. Building Node can take substantially longer than extension tests.
 These source-build tools are not requirements for users installing a complete,
 tested Windows VSIX; the runtime is already included in that package.
+
+The managed Node environment sets only the fixed `--preserve-symlinks` and
+`--preserve-symlinks-main` compatibility flags. This avoids module-loader
+ancestor inspection of the host drive root; no host ancestor ACLs are granted.
+These flags can change behavior for symlinked native modules, so provider CLI
+compatibility must still be tested. npm --version and public registry HTTPS
+have passed in native Windows CI.
