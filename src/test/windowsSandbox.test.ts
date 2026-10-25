@@ -51,7 +51,9 @@ native('Native Windows LPAC enforcement', function () {
     runtime = new WindowsSandbox(path.join(root, 'control'));
     nodeRuntime = await runtime.prepareNodeRuntime();
   });
-  afterEach(async () => { await fs.rm(root, { recursive: true, force: true }); });
+  // Windows image mappings/AV handles can briefly outlive process exit. Retry
+  // only temporary-fixture removal; enforcement assertions are never retried.
+  afterEach(async () => { await fs.rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
 
   it('requires a real LPAC token and denies original mutation while manual writes stay allowed', async () => {
     const capability = await new ManagedSandbox(path.join(root, 'control')).verify();

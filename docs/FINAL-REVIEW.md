@@ -4,7 +4,7 @@ Status: NOT APPROVED for Marketplace publication. Windows native/installed-packa
 
 ## Open release blockers
 
-1. Windows child-process I/O: stock Node loops while creating pipes in AppContainer ([upstream issue](https://github.com/nodejs/node/issues/66374)). A private runtime build with the upstream libuv fix is running in [review CI](https://github.com/ravi6565/ai-file-guard/actions/runs/40131998708). Building the binary is not acceptance: child write denial, shell/npm, HTTPS, host-control denial, real VS Code terminal and installed-VSIX tests must pass with it.
+1. Windows qualification: the private runtime build succeeded and fixes the stock Node AppContainer pipe loop ([upstream issue](https://github.com/nodejs/node/issues/66374)). Seven native checks, including child write denial, shell/npm, HTTPS and host-control denial, now pass. The deep-profile/long-path case and real VS Code terminal/installed-VSIX gates still require successful verification. Platform packages are not approved from skipped or partially passing tests.
 2. Signed-in provider workflows: CLI installation/version smoke tests do not establish a working Codex/Copilot/Claude model task. Verify the supported provider workflow locally before advertising it. Ordinary AI chat extensions remain outside enforcement.
 
 ## Scope
@@ -26,8 +26,8 @@ Status: NOT APPROVED for Marketplace publication. Windows native/installed-packa
 ## Evidence and gates
 
 - TypeScript and unit/service tests pass locally; native tests skipped on another OS are not evidence.
-- macOS native enforcement (8 cases) and all 17 installed-VSIX tests pass on both current stable VS Code 1.143.1 and the declared minimum family (1.95.3) on macOS Apple Silicon. TypeScript checks and 50 local unit/service cases pass. After development-tool fixes, npm reports zero known vulnerabilities across all dependencies, not only production dependencies.
-- Windows native tests have run on hosted Windows CI. Live locked-folder application/unlock, loopback denial, junction/hard-link rejection and unchanged original ACLs passed. Named-pipe control denial now passes. Stock Node child-process I/O hangs due to an upstream libuv bug; a private runtime containing the upstream fix is under Windows CI verification; the complete Windows native and installed-VSIX gates have not passed.
+- macOS native enforcement (8 cases) and all 17 installed-VSIX tests pass on both current stable VS Code 1.143.1 and the declared minimum family (1.95.3) on macOS Apple Silicon. TypeScript checks and 50 local unit/service cases pass. After development-tool fixes, npm audit reports zero known vulnerabilities in the extension build/test dependency graph; the extension has no production npm dependencies.
+- Windows native tests have run on hosted Windows CI. Live locked-folder application/unlock, loopback denial, junction/hard-link rejection and unchanged original ACLs passed. Named-pipe control denial now passes. The private runtime fixes the upstream child-pipe loop; shell/npm and public HTTPS also pass. The complete Windows long-profile and installed-VSIX gates have not yet passed.
 - Actual signed-in Codex/Copilot/Claude CLI tasks require provider account acceptance; no model task has been performed by this release preparation.
 - Audit the final VSIX metadata, native resource inclusion, privacy/security text, and absence of local credentials/policy before upload.
 

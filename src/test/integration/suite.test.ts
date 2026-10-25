@@ -146,13 +146,13 @@ suite('AI File Guard local policy', () => {
       const store = new LocalManifestStore(api.policyLocation);
       await store.refresh();
       const locks = new LockManager(store, new PathResolver());
-      // Use the running package's modules so its verified capability singleton
-      // is shared when the suite drives an installed VSIX rather than source.
+      // Use packaged UI code and the running extension's capability reader.
+      // Windows drive-letter casing can otherwise duplicate Node's module cache.
       const extension = vscode.extensions.getExtension('ravikiranv.ai-file-guard')!;
       const { ProtectionDecorations } = require(path.join(extension.extensionPath, 'dist', 'ui', 'protectionDecorations')) as typeof import('../../ui/protectionDecorations');
       const { ProtectedFilesTree } = require(path.join(extension.extensionPath, 'dist', 'ui', 'protectedFilesTree')) as typeof import('../../ui/protectedFilesTree');
-      const decorations = new ProtectionDecorations(locks);
-      const tree = new ProtectedFilesTree(locks);
+      const decorations = new ProtectionDecorations(locks, () => api.capability().available);
+      const tree = new ProtectedFilesTree(locks, () => api.capability().available);
       try {
         const decoration = await decorations.provideFileDecoration(vscode.Uri.file(file));
         assert.equal(decoration?.badge, nativePlatform ? '🔒' : '!');

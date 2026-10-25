@@ -127,7 +127,7 @@ export class WindowsSandbox {
       try {
         await execFile(path.win32.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe'), ['-xf', path.join(bundle, 'npm.tar'), '-C', extracted], { timeout: 30_000 });
         await fs.cp(path.join(extracted, 'npm'), path.join(modules, 'npm'), { recursive: true, dereference: false, errorOnExist: true });
-      } finally { await fs.rm(extracted, { recursive: true, force: true }); }
+      } finally { await fs.rm(extracted, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
       for (const name of ['npm.cmd', 'npx.cmd', 'LICENSE']) await fs.copyFile(path.join(bundle, name), path.join(temporary, name));
       try { await fs.rename(temporary, runtime); }
       catch (error) { if (!['EEXIST', 'ENOTEMPTY', 'EPERM'].includes(String((error as NodeJS.ErrnoException).code))) throw error; await fs.access(path.join(runtime, 'node.exe')); }

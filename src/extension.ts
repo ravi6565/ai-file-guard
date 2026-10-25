@@ -92,8 +92,11 @@ export async function activate(context: vscode.ExtensionContext) {
   // Keep commands registered even if a legacy permission cannot be restored.
   // The user can retry the repair command after resolving the reported OS error.
   try { await restoreLegacy(); } catch (error) { report(error); }
-  const tree = new ProtectedFilesTree(locks);
-  const decorations = new ProtectionDecorations(locks);
+  // Pass the same live capability reader used by activation/commands. Module
+  // paths can have distinct cache identities on case-insensitive hosts.
+  const isEnforced = () => detectEnforcementCapability().available;
+  const tree = new ProtectedFilesTree(locks, isEnforced);
+  const decorations = new ProtectionDecorations(locks, isEnforced);
   const statusBar = new GuardStatusBar(locks);
   const previews = new AgentChangesPreview();
   const roots = () => vscode.workspace.workspaceFolders?.filter(folder => folder.uri.scheme === 'file') ?? [];

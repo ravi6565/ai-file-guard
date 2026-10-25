@@ -7,7 +7,7 @@ export class ProtectionDecorations implements vscode.FileDecorationProvider, vsc
   private readonly subscription: { dispose(): void };
   public readonly onDidChangeFileDecorations = this.changed.event;
 
-  public constructor(private readonly locks: LockManager) {
+  public constructor(private readonly locks: LockManager, private readonly isEnforced: () => boolean = () => detectEnforcementCapability().available) {
     this.subscription = locks.onDidChange(() => this.changed.fire(undefined));
   }
 
@@ -16,7 +16,7 @@ export class ProtectionDecorations implements vscode.FileDecorationProvider, vsc
     try {
       const status = await this.locks.status(uri.fsPath);
       if (!status.protected) return undefined;
-      const enforced = detectEnforcementCapability().available;
+      const enforced = this.isEnforced();
       return {
         badge: enforced ? '🔒' : '!',
         tooltip: enforced ? `Locked against managed AI changes${status.explicit ? '' : ` by ${status.lock.displayPath}`}. Use the Protected AI Terminal; ordinary external AI sessions are not confined.` : 'Saved policy; managed sandbox unavailable. AI protection is NOT active.',
