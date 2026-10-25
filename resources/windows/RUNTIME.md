@@ -44,3 +44,11 @@ This is compatibility metadata, not an enforcement decision: the LPAC token
 continues to govern every filesystem operation even if a child changes its env.
 The source addition is included in the runtime cache key and runtime-build.json.
 The base npm archive and its upstream licenses remain in the Windows package.
+
+The read-only `guard-bin/codex` adapter takes precedence in the protected PATH.
+It launches the native payload from the complete npm-installed Codex package,
+preserving npm ownership metadata, arguments, stdio and termination signals.
+It avoids the npm CLI's JavaScript wrapper scanning inaccessible host ancestors;
+the installed Codex package is not rewritten. This adapter runs only as a child
+of the LPAC launcher, never in the unrestricted extension host. Its files also
+participate in the private-runtime cache key and provenance record.

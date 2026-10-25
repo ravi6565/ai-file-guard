@@ -108,11 +108,14 @@ export class WindowsSandbox {
     const sourceBytes = await fs.readFile(path.join(bundle, 'node.exe'));
     const npmArchive = await fs.readFile(path.join(bundle, 'npm.tar'));
     const npmCompatibility = await fs.readFile(path.join(bundle, '..', 'npm-private-roots.cjs'));
+    const launchers = await Promise.all(['codex.cmd', 'codex.cjs'].map(async name => ({ name, bytes: await fs.readFile(path.join(bundle, '..', name)) })));
     if (sha256(sourceBytes) !== manifest.nodeSha256 || sha256(npmArchive) !== manifest.npmSha256) throw new Error('Private Windows runtime checksum mismatch. Reinstall a tested package.');
     // Keep executable paths below the Windows loader limit even for nested
     // VS Code profiles. A 128-bit cache key matches the profile identity size;
     // complete binary/archive SHA-256 verification above remains unchanged.
-    const runtime = path.join(this.controlRoot, 'node-runtimes', createHash('sha256').update(sourceBytes).update(manifest.npmSha256).update(npmCompatibility).update(workspaceIdentity.toLowerCase()).digest('hex').slice(0, 32));
+    const runtimeKey = createHash('sha256').update(sourceBytes).update(manifest.npmSha256).update(npmCompatibility).update(workspaceIdentity.toLowerCase());
+    for (const launcher of launchers) runtimeKey.update(launcher.bytes);
+    const runtime = path.join(this.controlRoot, 'node-runtimes', runtimeKey.digest('hex').slice(0, 32));
     try { await fs.access(path.join(runtime, 'node.exe')); return await fs.realpath(runtime); }
     catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
     await fs.mkdir(path.dirname(runtime), { recursive: true });
@@ -134,7 +137,9 @@ export class WindowsSandbox {
       const originalHelper = await fs.readFile(helper);
       if (sha256(originalHelper) !== '54fb13b5b30d62115123b24e7b09b28d1ea6fa5363a81aae9ecd337de323662f') throw new Error('Unexpected npm Arborist helper; refusing an unreviewed compatibility modification.');
       await fs.writeFile(helper, Buffer.concat([originalHelper, Buffer.from('\n'), npmCompatibility]));
-      await fs.writeFile(path.join(temporary, 'runtime-build.json'), JSON.stringify({ nodeSha256: manifest.nodeSha256, npmSha256: manifest.npmSha256, npmCompatibilitySha256: sha256(npmCompatibility) }));
+      await fs.mkdir(path.join(temporary, 'guard-bin'));
+      for (const launcher of launchers) await fs.writeFile(path.join(temporary, 'guard-bin', launcher.name), launcher.bytes, { flag: 'wx' });
+      await fs.writeFile(path.join(temporary, 'runtime-build.json'), JSON.stringify({ nodeSha256: manifest.nodeSha256, npmSha256: manifest.npmSha256, npmCompatibilitySha256: sha256(npmCompatibility), launcherSha256: Object.fromEntries(launchers.map(launcher => [launcher.name, sha256(launcher.bytes)])) }));
       for (const name of ['npm.cmd', 'npx.cmd', 'LICENSE']) await fs.copyFile(path.join(bundle, name), path.join(temporary, name));
       try { await fs.rename(temporary, runtime); }
       catch (error) { if (!['EEXIST', 'ENOTEMPTY', 'EPERM'].includes(String((error as NodeJS.ErrnoException).code))) throw error; await fs.access(path.join(runtime, 'node.exe')); }
@@ -185,7 +190,7 @@ export function windowsEnvironment(home: string, temporary: string, runtime?: st
   const windows = process.env.SystemRoot ?? 'C:\\Windows';
   const environment: Record<string, string> = {
     SystemRoot: windows, WINDIR: windows, COMSPEC: path.win32.join(windows, 'System32', 'cmd.exe'),
-    PATH: [path.win32.join(home, '.local'), ...(runtime ? [runtime] : []), path.win32.join(windows, 'System32'), windows].join(';'),
+    PATH: [...(runtime ? [path.win32.join(runtime, 'guard-bin')] : []), path.win32.join(home, '.local'), ...(runtime ? [runtime] : []), path.win32.join(windows, 'System32'), windows].join(';'),
     USERPROFILE: home, HOME: home, HOMEDRIVE: path.win32.parse(home).root.slice(0, 2), HOMEPATH: home.slice(2),
     APPDATA: path.win32.join(home, 'AppData', 'Roaming'), LOCALAPPDATA: path.win32.join(home, 'AppData', 'Local'),
     TEMP: temporary, TMP: temporary, PATHEXT: '.COM;.EXE;.BAT;.CMD',
