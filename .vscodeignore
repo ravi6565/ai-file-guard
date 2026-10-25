@@ -1,6 +1,9 @@
 .github/
 .vscode/
 src/
+scripts/
+artifacts/
+resources/windows/libuv-appcontainer.patch
 test/
 tsconfig.json
 node_modules/.cache/
@@ -8,6 +11,8 @@ dist/test/**
 .gitignore
 .vscode-test/**
 *.vsix
+*.vsix.sha256
+*.vsix.json
 AGENTS.md
 AGENTS.override.md
 CLAUDE.md

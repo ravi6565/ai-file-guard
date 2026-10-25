@@ -22,7 +22,7 @@ describe('Windows managed environment', () => {
     assert.equal(environment.USERPROFILE, 'C:\\guard\\home');
     assert.equal(environment.CODEX_HOME, 'C:\\guard\\home\\.codex');
     assert.equal(environment.VSCODE_IPC_HOOK_CLI, undefined);
-    assert.equal(environment.NODE_OPTIONS, undefined);
+    assert.equal(environment.NODE_OPTIONS, '--preserve-symlinks --preserve-symlinks-main');
     assert.equal(environment.SSH_AUTH_SOCK, undefined);
     assert.equal(environment.HTTP_PROXY, undefined);
     assert.equal(environment.PATH.includes('C:\\guard\\runtime'), true);

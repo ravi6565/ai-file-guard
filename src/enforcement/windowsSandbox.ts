@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { createHash, randomUUID } from 'node:crypto';
 import { execFile as execFileCallback } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -116,7 +117,14 @@ export class WindowsSandbox {
       await fs.writeFile(path.join(temporary, 'node.exe'), sourceBytes, { flag: 'wx' });
       const modules = path.join(temporary, 'node_modules');
       await fs.mkdir(modules);
-      await execFile(path.win32.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe'), ['-xf', path.join(bundle, 'npm.tar'), '-C', modules], { timeout: 30_000 });
+      // Windows tar's chdir still truncates long -C paths. Extract the verified
+      // archive to a short private host temporary path, then copy with Node's
+      // long-path-aware filesystem APIs. This directory is never agent-writable.
+      const extracted = await fs.mkdtemp(path.join(os.tmpdir(), 'afg-npm-'));
+      try {
+        await execFile(path.win32.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe'), ['-xf', path.join(bundle, 'npm.tar'), '-C', extracted], { timeout: 30_000 });
+        await fs.cp(path.join(extracted, 'npm'), path.join(modules, 'npm'), { recursive: true, dereference: false, errorOnExist: true });
+      } finally { await fs.rm(extracted, { recursive: true, force: true }); }
       for (const name of ['npm.cmd', 'npx.cmd', 'LICENSE']) await fs.copyFile(path.join(bundle, name), path.join(temporary, name));
       try { await fs.rename(temporary, runtime); }
       catch (error) { if (!['EEXIST', 'ENOTEMPTY', 'EPERM'].includes(String((error as NodeJS.ErrnoException).code))) throw error; await fs.access(path.join(runtime, 'node.exe')); }
@@ -171,6 +179,10 @@ export function windowsEnvironment(home: string, temporary: string, runtime?: st
     TEMP: temporary, TMP: temporary, PATHEXT: '.COM;.EXE;.BAT;.CMD',
     CODEX_HOME: path.win32.join(home, '.codex'), CLAUDE_CONFIG_DIR: path.win32.join(home, '.claude'),
     npm_config_cache: path.win32.join(home, '.npm'), npm_config_prefix: path.win32.join(home, '.local'), AI_FILE_GUARD_MANAGED: '1',
+    // CJS's JS realpath walks every ancestor and attempts lstat(C:\\), which
+    // LPAC deliberately cannot read. Preserve module paths instead of granting
+    // host ancestors. These fixed compatibility flags never inherit host input.
+    NODE_OPTIONS: '--preserve-symlinks --preserve-symlinks-main',
   };
   for (const name of ['OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'GITHUB_TOKEN', 'GH_TOKEN']) if (process.env[name]) environment[name] = process.env[name]!;
   return environment;

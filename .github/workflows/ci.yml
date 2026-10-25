@@ -62,5 +62,8 @@ jobs:
         if: runner.os != 'Linux'
         with:
           name: installed-candidate-${{ matrix.os }}-node-${{ matrix.node }}
-          path: candidate.vsix
+          path: |
+            candidate.vsix
+            candidate.vsix.sha256
+            candidate.vsix.json
           if-no-files-found: error
