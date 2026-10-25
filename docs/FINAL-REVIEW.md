@@ -1,11 +1,10 @@
 # Release review — 0.11.0 candidate
 
-Status: NOT APPROVED for Marketplace publication. Windows native/installed-package gates and the developer's signed-in provider acceptance remain open. This report distinguishes executed checks from pending acceptance.
+Status: PREPARED for local pre-release acceptance. All automated platform/package gates passed in [review CI](https://github.com/ravi6565/ai-file-guard/actions/runs/40167753578). Marketplace publication remains pending the developer's signed-in provider acceptance. No model task, Marketplace upload or production security certification has been performed.
 
-## Open release blockers
+## Remaining acceptance
 
-1. Windows qualification: the private runtime build succeeded and fixes the stock Node AppContainer pipe loop ([upstream issue](https://github.com/nodejs/node/issues/66374)). All eight native checks, including deep profiles/long files, child write denial, shell/npm, HTTPS and host-control denial, have passed on Windows CI. The real VS Code terminal denial test also passes. Windows sharing-error fixes, exact installed-VSIX acceptance and the CLI installation smoke gate still require a complete successful run. Platform packages are not approved from skipped or partially passing tests.
-2. Signed-in provider workflows: CLI installation/version smoke tests do not establish a working Codex/Copilot/Claude model task. Verify the supported provider workflow locally before advertising it. Ordinary AI chat extensions remain outside enforcement.
+Install the exact prepared VSIX on your device and run a signed-in AI CLI task using `LOCAL-TEST.md`. CLI installation/version tests establish startup, not a complete authenticated model workflow. Ordinary AI chat extensions remain outside enforcement. Publishing is a separate manual step described in `DEPLOYMENT.md`.
 
 ## Scope
 
@@ -27,15 +26,15 @@ Status: NOT APPROVED for Marketplace publication. Windows native/installed-packa
 ## Evidence and gates
 
 - TypeScript and unit/service tests pass locally; native tests skipped on another OS are not evidence.
-- macOS native enforcement (9 cases) and all 17 installed-VSIX tests pass on both current stable VS Code 1.143.1 and the declared minimum family (1.95.3) on macOS Apple Silicon. TypeScript checks and 50 local unit/service cases pass. After development-tool fixes, npm audit reports zero known vulnerabilities in the extension build/test dependency graph; the extension has no production npm dependencies.
-- Windows native tests have run on hosted Windows CI. Live locked-folder application/unlock, loopback denial, junction/hard-link rejection and unchanged original ACLs passed. Named-pipe control denial now passes. The private runtime fixes the upstream child-pipe loop; shell/npm and public HTTPS also pass. The complete native gate and actual Windows terminal denial pass; final installed-VSIX and provider-installation qualification are still pending.
+- macOS native enforcement (9 cases) and all 17 installed-VSIX tests pass on both current stable VS Code 1.143.1 and the declared minimum family (1.95.3) on macOS Apple Silicon. TypeScript checks and 50 local unit/service cases pass. After development-tool fixes, npm audit reports zero known vulnerabilities in the extension build/test dependency graph; package.json declares only development dependencies; Windows separately bundles a private Node/npm runtime.
+- Windows native tests have run on hosted Windows CI. Live locked-folder application/unlock, loopback denial, junction/hard-link rejection and unchanged original ACLs passed. Named-pipe control denial now passes. The private runtime fixes the upstream child-pipe loop; shell/npm and public HTTPS also pass. Both Windows Node 22/24 CI jobs passed native and installed-package acceptance. The confined CLI smoke installed and started Codex 0.164.0 without signing in or calling a model.
 - Actual signed-in Codex/Copilot/Claude CLI tasks require provider account acceptance; no model task has been performed by this release preparation.
-- Audit the final VSIX metadata, native resource inclusion, privacy/security text, and absence of local credentials/policy before upload.
+- Packaging now emits platform-specific VSIXs with SHA-256 and metadata sidecars, validates Windows runtime provenance, excludes Windows resources from macOS, and excludes local policies, test/dependency installations and development review reports. Keep the exact tested file for upload.
 
 ## Remaining limitations
 
 - No universal interception of external AI processes; all protected execution must use the managed path.
-- Windows LPAC backend and CLI compatibility remain unqualified until host acceptance passes. The Windows package requires its compatible private Node runtime, .NET Framework 4.8 with its compiler, and built-in tar.exe.
+- Windows LPAC native, real-terminal and installed-VSIX gates pass on hosted Windows CI. Local signed-in provider acceptance remains required. The Windows package requires its compatible private Node runtime, .NET Framework 4.8 with its compiler, and built-in tar.exe.
 - macOS sandbox-exec is deprecated. Independent security review and long-term OS compatibility remain open.
 - A crashed policy lease can require manual recovery while all other extension windows are closed. Automatic stale-lease recovery is not implemented.
 - Rename proposals are independent create/delete operations; grouped rollback and file/directory kind conversion are not implemented.

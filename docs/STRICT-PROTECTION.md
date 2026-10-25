@@ -1,6 +1,6 @@
 # Strict protection scope — 0.11 candidate
 
-The requested separation is implemented for the controlled execution path: the human editor retains original-file write access; agents launched in Protected AI Terminal must have OS-denied direct writes to originals; the trusted apply service rejects locked-file and locked-folder changes. macOS is verified locally. A native Windows LPAC backend is implemented as a candidate and requires real Windows native/terminal/provider acceptance; macOS tests do not establish that support. Docker and WSL are not used.
+The requested separation is implemented for the controlled execution path: the human editor retains original-file write access; agents launched in Protected AI Terminal must have OS-denied direct writes to originals; the trusted apply service rejects locked-file and locked-folder changes. macOS is verified locally. The native Windows LPAC backend passes Windows CI token, mutation, terminal and installed-VSIX acceptance; signed-in provider workflows still require local acceptance. Docker and WSL are not used.
 
 A lock affects current application policy immediately, including proposals from sessions created before the lock. Unlock permits application when optimistic developer-content checks pass. Agents do not acquire writable original-file handles.
 

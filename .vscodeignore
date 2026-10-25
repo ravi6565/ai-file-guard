@@ -8,6 +8,10 @@ test/
 tsconfig.json
 node_modules/.cache/
 dist/test/**
+docs/FINAL-REVIEW.md
+docs/REVIEW-2026-10-24.md
+docs/LOCAL-VALIDATION.md
+docs/MILESTONES.md
 .gitignore
 .vscode-test/**
 *.vsix

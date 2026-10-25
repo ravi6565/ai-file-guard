@@ -191,6 +191,23 @@ suite('AI File Guard local policy', () => {
       }
       assert.equal(observed, 'DENIED', 'The actual VS Code terminal must run inside the OS sandbox.');
       assert.equal(await fs.readFile(file, 'utf8'), 'original');
+      const interruptMarker = path.join(result!.session.stagingRoot, 'interrupt-result.txt');
+      const sendNode = (script: string) => terminal.sendText(process.platform === 'win32'
+        ? `node -e "${script}" "${interruptMarker}"`
+        : `node -e ${quoted(script)} ${quoted(interruptMarker)}`, true);
+      const awaitMarker = async (expected: string) => {
+        for (let attempt = 0; attempt < 150; attempt++) {
+          if (await fs.readFile(interruptMarker, 'utf8').catch(() => '') === expected) return;
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
+        assert.fail(`Protected terminal did not report ${expected}.`);
+      };
+      sendNode("require('fs').writeFileSync(process.argv[1],'RUNNING');setInterval(()=>{},1000)");
+      await awaitMarker('RUNNING');
+      terminal.show();
+      await vscode.commands.executeCommand('workbench.action.terminal.sendSequence', { text: '\u0003' });
+      sendNode("require('fs').writeFileSync(process.argv[1],'RESUMED')");
+      await awaitMarker('RESUMED');
       await fs.writeFile(file, 'developer edit still allowed');
       assert.equal(await fs.readFile(file, 'utf8'), 'developer edit still allowed');
     } finally {

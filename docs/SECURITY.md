@@ -10,7 +10,7 @@ The extension is not a universal AI-origin detector. The [VS Code extension host
 
 ## Runtime controls and limitations
 
-The Windows candidate uses LPAC with ALL APPLICATION PACKAGES opted out, explicit SID grants only on private copy/home/temp and a read-only runtime, an explicit inherited-standard-handle list, and a kill-on-close job assigned before the process resumes. ACL and integrity-label changes use verified file handles and reject reparse points/hard links; original-project ACLs are not changed. Windows uses internet-client and registry-read capabilities, with no LAN/server capability or loopback exemption. Private AppContainer profile storage may persist. This backend requires real Windows token, mutation, child-process, named-pipe, loopback, terminal and provider acceptance before publication; macOS results do not establish Windows support.
+The Windows candidate uses LPAC with ALL APPLICATION PACKAGES opted out, explicit SID grants only on private copy/home/temp and a read-only runtime, an explicit inherited-standard-handle list, and a kill-on-close job assigned before the process resumes. ACL and integrity-label changes use verified file handles and reject reparse points/hard links; original-project ACLs are not changed. Windows uses internet-client and registry-read capabilities, with no LAN/server capability or loopback exemption. Private AppContainer profile storage may persist. Windows CI now passes token, mutation, child-process, named-pipe, loopback, real-terminal and installed-VSIX checks. Codex 0.164.0 installs/starts in LPAC; signed-in provider acceptance is still required.
 
 A real filesystem denial probe is required before capability is available. Each generated profile is validated before terminal launch. No unconfined fallback exists.
 
@@ -44,4 +44,4 @@ Instruction files do not confer enforcement against unrestricted agents and may 
 
 Verified locally: native mutation denial, alias/child-process attempts, local control-service denial, policy tampering denial, live lock/unlock application, actual VS Code protected-terminal writes, outbound public HTTPS, and a temporary Codex CLI version invocation.
 
-Not verified: signed-in model tasks for every provider, Windows/Linux sandbox backends, OS security certification, unrestricted external-agent confinement, or resistance to unknown kernel/runtime vulnerabilities. Marketplace publication and broad security certification are deferred.
+Not verified: signed-in model tasks for every provider, Linux enforcement, OS security certification, unrestricted external-agent confinement, or resistance to unknown kernel/runtime vulnerabilities. Marketplace publication and broad security certification are deferred.

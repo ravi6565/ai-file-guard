@@ -22,9 +22,16 @@ try {
   for (const name of ['CODEX_MANAGED_BY_NPM', 'CODEX_MANAGED_BY_BUN', 'CODEX_MANAGED_BY_PNPM', 'CODEX_MANAGED_BY_VITE_PLUS']) delete environment[name];
   environment.CODEX_MANAGED_BY_NPM = '1';
   const child = spawn(executable, process.argv.slice(2), { stdio: 'inherit', env: environment });
+  const handlers = new Map();
   child.once('error', error => { console.error(error.message); process.exitCode = 1; });
-  child.once('exit', (code, signal) => { if (signal) process.kill(process.pid, signal); else process.exitCode = code ?? 1; });
-  for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(signal, () => { if (!child.killed) { try { child.kill(signal); } catch { /* Child already exited. */ } } });
+  child.once('exit', (code, signal) => {
+    for (const [name, handler] of handlers) process.removeListener(name, handler);
+    if (signal) process.kill(process.pid, signal); else process.exitCode = code ?? 1;
+  });
+  for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+    const handler = () => { if (!child.killed) { try { child.kill(signal); } catch { /* Child already exited. */ } } };
+    handlers.set(signal, handler); process.on(signal, handler);
+  }
 } catch (error) {
   console.error(`AI File Guard Codex adapter: ${error.message}`);
   process.exitCode = 1;
