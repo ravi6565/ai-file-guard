@@ -1,6 +1,6 @@
-# Release status — 0.12.1
+# Release status — 0.12.2
 
-AI File Guard 0.12.1 is prepared for the stable Marketplace channel under publisher
+AI File Guard 0.12.2 is prepared for the stable Marketplace channel under publisher
 `ravikiranv`. The developer reports successful validation of the 0.11.0 preview.
 Stable packages remove Preview labeling and pre-release metadata while preserving
 the tested runtime behavior. New stable payloads must pass their own platform and
@@ -14,7 +14,7 @@ resources. No Docker/WSL dependency is required.
 
 ## Release qualification
 
-- Keep the publisher ID, version 0.12.1, target and stable channel consistent in both platform packages.
+- Keep the publisher ID, version 0.12.2, target and stable channel consistent in both platform packages.
 - Run type checks, unit/service regressions, native OS-denial tests, actual protected-terminal checks and installed-package acceptance on each supported host.
 - Verify lock/unlock, recursive folder policy, dynamic instructions, manual editing, preview/apply and persistence.
 - Publish the exact tested VSIX files and check Marketplace validation. Do not upload the old preview packages.

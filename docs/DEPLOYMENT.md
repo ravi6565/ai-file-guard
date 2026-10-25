@@ -1,9 +1,9 @@
-# Deploying AI File Guard 0.12.1
+# Deploying AI File Guard 0.12.2
 
 Publisher: **ravikiranv**. Extension ID: **ravikiranv.ai-file-guard**.
 Support/security contact: **ravikiranv8919@gmail.com**.
 
-This release uses the stable Marketplace channel. Protection applies to the
+This release uses the stable Marketplace channel. The public homepage is the developer profile at https://github.com/ravi6565. Optional Issues/Repository metadata is omitted because the source repository is private; support remains available by email from the README. Protection applies to the
 Protected AI Terminal and trusted apply service. Ordinary AI chat extensions are
 outside enforcement; instruction files provide cooperative guidance. Keep this
 scope visible in the listing.
@@ -35,7 +35,7 @@ old `ai-file-guard.ai-file-guard` extension first; verify migrated locks before
 removing old data. Automated package acceptance uses:
 
 ```sh
-npm run test:vsix -- artifacts/ai-file-guard-0.12.1-darwin-arm64.vsix
+npm run test:vsix -- artifacts/ai-file-guard-0.12.2-darwin-arm64.vsix
 ```
 
 For Windows substitute `win32-x64`. Follow `LOCAL-TEST.md` for manual checks.
@@ -50,7 +50,7 @@ Open [Manage Publishers & Extensions](https://marketplace.visualstudio.com/manag
 and select **ravikiranv**. For the first upload choose **New extension → Visual
 Studio Code** and select the tested macOS VSIX. If the extension already exists,
 use its update action. Use the same listing's update action to add the Windows
-VSIX at version **0.12.1**. Both packages must use the **stable** release channel,
+VSIX at version **0.12.2**. Both packages must use the **stable** release channel,
 with no Preview label. Upload only `.vsix` files, retaining JSON/checksum sidecars
 as release records. Wait for Marketplace validation, then check both targets and
 install the published build on each supported host.
@@ -59,7 +59,7 @@ Alternatively, after configuring publishing authentication locally, publish the
 exact packages with the installed VSCE CLI:
 
 ```sh
-node node_modules/@vscode/vsce/vsce publish --packagePath artifacts/ai-file-guard-0.12.1-darwin-arm64.vsix artifacts/ai-file-guard-0.12.1-win32-x64.vsix
+node node_modules/@vscode/vsce/vsce publish --packagePath artifacts/ai-file-guard-0.12.2-darwin-arm64.vsix artifacts/ai-file-guard-0.12.2-win32-x64.vsix
 ```
 
 This command uses existing files. Do not rebuild an accepted package or add the

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.12.2 — Marketplace resource-link correction
+
+- Remove the optional Issues resource generated from bugs.email; Marketplace rejected its mailto URL. Keep public support and security contact details in the README and author metadata.
+- Omit private-repository resource links to prevent VSCE from automatically generating an inaccessible issues URL. Keep the public developer profile as homepage.
+- Validate generated resource links and reject unintended Issues/private-source metadata before accepting a release package. Protection behavior is unchanged.
+
 ## 0.12.1 — Marketplace homepage correction
 
 - Replace the self-referencing Marketplace homepage URL with the developer’s public GitHub profile. The source repository remains private.

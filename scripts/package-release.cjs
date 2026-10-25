@@ -19,6 +19,9 @@ async function main() {
   if (manifest.publisher !== 'ravikiranv' || manifest.name !== 'ai-file-guard' || manifest.preview !== false) throw new Error('Stable packaging requires the expected publisher, extension ID and preview: false.');
   const homepage = new URL(manifest.homepage);
   if (homepage.protocol !== 'https:' || homepage.hostname === 'marketplace.visualstudio.com') throw new Error('The homepage must be an owned HTTPS project/developer page, not a Marketplace listing.');
+  // The source repository is private. Omitting bugs alone makes VSCE infer
+  // its inaccessible issue tracker from repository, so omit both resources.
+  if (manifest.bugs || manifest.repository) throw new Error('This private-source release uses README email support; omit optional bugs/repository resource metadata.');
   if (!/^\d+\.\d+\.\d+$/.test(manifest.version)) throw new Error('Marketplace requires a numeric extension version.');
   const hash = data => createHash('sha256').update(data).digest('hex');
   if (target === 'win32-x64') {
@@ -37,7 +40,7 @@ async function main() {
     const ignoreFile = path.join(temporary, 'package.ignore');
     const ignores = await fs.readFile(path.join(root, '.vscodeignore'), 'utf8');
     await fs.writeFile(ignoreFile, `${ignores}\n${target.startsWith('darwin-') ? 'resources/windows/**\n' : ''}`);
-    await createVSIX({ cwd: root, packagePath: destination, target, preRelease: false, ignoreFile });
+    await createVSIX({ cwd: root, packagePath: destination, target, preRelease: false, allowMissingRepository: true, ignoreFile });
     const digest = hash(await fs.readFile(destination));
     await fs.writeFile(`${destination}.sha256`, `${digest}  ${path.basename(destination)}\n`);
     await fs.writeFile(`${destination}.json`, JSON.stringify({ extension: `${manifest.publisher}.${manifest.name}`, version: manifest.version, target, preRelease: false, sha256: digest, protectionScope: 'managed-agents-only', acceptanceRequired: true }, null, 2) + '\n');

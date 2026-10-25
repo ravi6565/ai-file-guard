@@ -1,6 +1,6 @@
 # AI File Guard
 
-**Windows x64 + macOS Apple Silicon · Version 0.12.1 · Publisher: ravikiranv · Support: [ravikiranv8919@gmail.com](mailto:ravikiranv8919@gmail.com)**
+**Windows x64 + macOS Apple Silicon · Version 0.12.2 · Publisher: ravikiranv · Support: [ravikiranv8919@gmail.com](mailto:ravikiranv8919@gmail.com)**
 
 AI File Guard 0.12 combines local file/folder locks, synchronized agent instructions, and native managed AI terminals. Your normal editor stays writable. AI tools launched in **Protected AI Terminal** cannot write original projects directly; the apply service rejects changes to locked originals.
 
@@ -69,4 +69,4 @@ Build the Marketplace candidate with `npm run package:release`. It writes the ho
 
 AI File Guard does not call a model or upload source itself. Local policy, copies, audits and isolated agent credentials remain in extension storage; uninstalling may leave them behind. Agent tools may read local files and send data to their providers. Generated instruction files contain relative locked paths and can be read by those tools or shared through Git if committed. Keep local instruction sections out of commits when they must stay private.
 
-For support or private vulnerability reports, email [ravikiranv8919@gmail.com](mailto:ravikiranv8919@gmail.com). Do not include credentials or sensitive project content. The source repository is currently private; email is the public support route.
+For support or private vulnerability reports, email [ravikiranv8919@gmail.com](mailto:ravikiranv8919@gmail.com). Do not include credentials or sensitive project content. The source repository is private; email is the public support route. The optional Issues and Repository links are omitted from Marketplace metadata because there is no public issue tracker.

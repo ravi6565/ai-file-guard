@@ -2,21 +2,14 @@
   "name": "ai-file-guard",
   "displayName": "AI File Guard",
   "description": "Native protected AI terminals, local file/folder locks, and synchronized agent instructions.",
-  "version": "0.12.1",
+  "version": "0.12.2",
   "publisher": "ravikiranv",
   "preview": false,
   "author": {
     "name": "ravikiranv",
     "email": "ravikiranv8919@gmail.com"
   },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/ravi6565/ai-file-guard.git"
-  },
   "homepage": "https://github.com/ravi6565",
-  "bugs": {
-    "email": "ravikiranv8919@gmail.com"
-  },
   "license": "MIT",
   "extensionKind": ["workspace"],
   "capabilities": {
@@ -102,7 +95,7 @@
     "test:vsix": "npm run compile && node dist/test/runIntegration.js --vsix",
     "test:sandbox": "npm run compile && node dist/test/runNative.js",
     "lint": "tsc -p . --noEmit",
-    "package": "vsce package",
+    "package": "vsce package --allow-missing-repository",
     "package:release": "node scripts/package-release.cjs"
   },
   "overrides": {

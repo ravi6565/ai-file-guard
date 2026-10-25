@@ -1,6 +1,6 @@
-# Release review — 0.12.1 stable
+# Release review — 0.12.2 stable
 
-Status: Stable release preparation. The developer reports successful preview validation and requests the stable release channel. The 0.11.0 preview passed [full platform/package CI](https://github.com/ravi6565/ai-file-guard/actions/runs/40169335886). Version 0.12.1 removes Preview/pre-release metadata and retains the runtime behavior. Fresh stable-payload CI acceptance is required before upload. Publication has not been performed.
+Status: Stable release preparation. The developer reports successful preview validation and requests the stable release channel. The 0.11.0 preview passed [full platform/package CI](https://github.com/ravi6565/ai-file-guard/actions/runs/40169335886). Version 0.12.2 removes Preview/pre-release metadata and retains the runtime behavior. Fresh stable-payload CI acceptance is required before upload. Publication has not been performed.
 
 ## Acceptance and publication
 

@@ -76,6 +76,7 @@ jobs:
               assert manifest['preview'] is False
               assert manifest['version'] == expected['version']
               assert manifest['homepage'] == expected['homepage'] == 'https://github.com/ravi6565'
+              assert 'bugs' not in manifest and 'repository' not in manifest
               assert manifest['publisher'] == 'ravikiranv'
               assert manifest['name'] == 'ai-file-guard'
               xml = ET.fromstring(archive.read('extension.vsixmanifest'))
@@ -86,6 +87,8 @@ jobs:
               assert 'Preview' not in xml.findtext('v:Metadata/v:GalleryFlags', '', ns)
               properties = {p.attrib['Id']: p.attrib.get('Value') for p in xml.findall('.//v:Property', ns)}
               assert properties.get('Microsoft.VisualStudio.Code.PreRelease', 'false') == 'false'
+              links = {key: value for key, value in properties.items() if key.startswith('Microsoft.VisualStudio.Services.Links.')}
+              assert links == {'Microsoft.VisualStudio.Services.Links.Learn': expected['homepage']}, links
           print('Stable channel, identity, target and checksum verified.')
       - run: npm run test:vsix -- candidate.vsix
         if: runner.os != 'Linux'
