@@ -35,3 +35,10 @@ ancestor inspection of the host drive root; no host ancestor ACLs are granted.
 These flags can change behavior for symlinked native modules, so provider CLI
 compatibility must still be tested. npm --version and public registry HTTPS
 have passed in native Windows CI.
+
+The derived npm copy appends `npm-realpath-fallback.cjs` to the checksum-pinned
+Arborist helper. When an ancestor metadata scan fails with EPERM/EACCES, it tries
+the native filesystem realpath for the requested target. Native access failures
+still propagate; host drive/user-directory ACLs remain unchanged. This source
+addition is included in the derived-runtime cache key and runtime-build.json.
+The base npm archive and its upstream licenses remain in the Windows package.

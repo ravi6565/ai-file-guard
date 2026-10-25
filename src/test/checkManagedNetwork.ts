@@ -39,6 +39,8 @@ async function main(): Promise<void> {
     if (process.env.AI_FILE_GUARD_CLI_SMOKE === '1') {
       const version = result.stdout.trim().split(' ').at(-1)!;
       if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Invalid CLI version in registry response.');
+      if (windows) await invoke(windowsSystemExecutable('cmd.exe'), ['/d', '/q', '/c', 'if not exist "%CODEX_HOME%" mkdir "%CODEX_HOME%"'], 15_000);
+      else await invoke('/bin/mkdir', ['-p', launch.environment.CODEX_HOME], 5_000);
       if (windows) await invoke(windowsSystemExecutable('cmd.exe'), ['/d', '/q', '/c', `npm install --global @openai/codex@${version} --no-audit --no-fund`], 180_000);
       else await invoke('npm', ['install', '--global', `@openai/codex@${version}`, '--no-audit', '--no-fund'], 180_000);
       const cli = windows

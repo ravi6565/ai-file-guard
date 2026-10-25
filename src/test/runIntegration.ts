@@ -40,7 +40,12 @@ async function main(): Promise<void> {
       await fs.access(vsix);
       vscodeExecutablePath = await downloadAndUnzipVSCode(version);
       const [cli, ...cliArgs] = resolveCliArgsFromVSCodeExecutablePath(vscodeExecutablePath);
-      const installed = await execFileAsync(cli, [...cliArgs, '--install-extension', vsix, '--force', '--user-data-dir', path.join(testRoot, 'profile'), '--extensions-dir', path.join(testRoot, 'extensions')]);
+      const installArgs = [...cliArgs, '--install-extension', vsix, '--force', '--user-data-dir', path.join(testRoot, 'profile'), '--extensions-dir', path.join(testRoot, 'extensions')];
+      // code.cmd cannot be passed to execFile on patched Windows Node releases.
+      // Invoke the same Electron CLI entry directly, without shell interpolation.
+      const installed = process.platform === 'win32'
+        ? await execFileAsync(vscodeExecutablePath, [path.join(path.dirname(vscodeExecutablePath), 'resources', 'app', 'out', 'cli.js'), ...installArgs], { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } })
+        : await execFileAsync(cli, installArgs);
       console.log(installed.stdout.trim());
       const installedDirectories = await fs.readdir(path.join(testRoot, 'extensions'), { withFileTypes: true });
       let installedPath: string | undefined;

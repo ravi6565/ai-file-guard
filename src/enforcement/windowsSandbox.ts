@@ -106,11 +106,12 @@ export class WindowsSandbox {
     if (manifest.architecture !== 'x64' || !/^[a-f0-9]{64}$/.test(manifest.nodeSha256) || !/^[a-f0-9]{64}$/.test(manifest.npmSha256)) throw new Error('Invalid private Windows runtime manifest.');
     const sourceBytes = await fs.readFile(path.join(bundle, 'node.exe'));
     const npmArchive = await fs.readFile(path.join(bundle, 'npm.tar'));
+    const npmCompatibility = await fs.readFile(path.join(bundle, '..', 'npm-realpath-fallback.cjs'));
     if (sha256(sourceBytes) !== manifest.nodeSha256 || sha256(npmArchive) !== manifest.npmSha256) throw new Error('Private Windows runtime checksum mismatch. Reinstall a tested package.');
     // Keep executable paths below the Windows loader limit even for nested
     // VS Code profiles. A 128-bit cache key matches the profile identity size;
     // complete binary/archive SHA-256 verification above remains unchanged.
-    const runtime = path.join(this.controlRoot, 'node-runtimes', createHash('sha256').update(sourceBytes).update(manifest.npmSha256).update(workspaceIdentity.toLowerCase()).digest('hex').slice(0, 32));
+    const runtime = path.join(this.controlRoot, 'node-runtimes', createHash('sha256').update(sourceBytes).update(manifest.npmSha256).update(npmCompatibility).update(workspaceIdentity.toLowerCase()).digest('hex').slice(0, 32));
     try { await fs.access(path.join(runtime, 'node.exe')); return await fs.realpath(runtime); }
     catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
     await fs.mkdir(path.dirname(runtime), { recursive: true });
@@ -128,6 +129,11 @@ export class WindowsSandbox {
         await execFile(path.win32.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe'), ['-xf', path.join(bundle, 'npm.tar'), '-C', extracted], { timeout: 30_000 });
         await fs.cp(path.join(extracted, 'npm'), path.join(modules, 'npm'), { recursive: true, dereference: false, errorOnExist: true });
       } finally { await fs.rm(extracted, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
+      const helper = path.join(modules, 'npm', 'node_modules', '@npmcli', 'arborist', 'lib', 'realpath.js');
+      const originalHelper = await fs.readFile(helper);
+      if (sha256(originalHelper) !== '54fb13b5b30d62115123b24e7b09b28d1ea6fa5363a81aae9ecd337de323662f') throw new Error('Unexpected npm Arborist helper; refusing an unreviewed compatibility modification.');
+      await fs.writeFile(helper, Buffer.concat([originalHelper, Buffer.from('\n'), npmCompatibility]));
+      await fs.writeFile(path.join(temporary, 'runtime-build.json'), JSON.stringify({ nodeSha256: manifest.nodeSha256, npmSha256: manifest.npmSha256, npmCompatibilitySha256: sha256(npmCompatibility) }));
       for (const name of ['npm.cmd', 'npx.cmd', 'LICENSE']) await fs.copyFile(path.join(bundle, name), path.join(temporary, name));
       try { await fs.rename(temporary, runtime); }
       catch (error) { if (!['EEXIST', 'ENOTEMPTY', 'EPERM'].includes(String((error as NodeJS.ErrnoException).code))) throw error; await fs.access(path.join(runtime, 'node.exe')); }

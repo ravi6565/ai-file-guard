@@ -3,6 +3,7 @@ import { LockEntry } from '../core/types';
 import { ManagedSectionSynchronizer } from '../instructions/managedSection';
 import { AgentAdapter } from './agentAdapter';
 import { promises as fs } from 'node:fs';
+import { retryWindowsSharing } from '../io/windowsSharing';
 
 export interface InstructionSyncResult {
   roots: string[];
@@ -37,7 +38,7 @@ export class InstructionCoordinator {
               try { stat = await fs.lstat(file); }
               catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue; throw error; }
               if (stat.isFile()) {
-                const existing = await fs.readFile(file, 'utf8');
+                const existing = await retryWindowsSharing(() => fs.readFile(file, 'utf8'));
                 if (!existing.includes('<!-- AI FILE GUARD:BEGIN -->') && !existing.includes('<!-- AI FILE GUARD:END -->')) continue;
               }
             }
