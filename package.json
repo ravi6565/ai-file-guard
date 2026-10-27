@@ -2,7 +2,7 @@
   "name": "ai-file-guard",
   "displayName": "AI File Guard",
   "description": "Native protected AI terminals, local file/folder locks, and synchronized agent instructions.",
-  "version": "0.12.2",
+  "version": "0.12.3",
   "publisher": "ravikiranv",
   "preview": false,
   "author": {

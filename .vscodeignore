@@ -1,8 +1,10 @@
 .github/
 .vscode/
 src/
-scripts/
+scripts/**
+!scripts/diagnose-windows.cjs
 artifacts/
+windows-diagnostics.json
 resources/windows/libuv-appcontainer.patch
 test/
 tsconfig.json

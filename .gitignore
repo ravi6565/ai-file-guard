@@ -2,6 +2,7 @@
 node_modules/
 dist/
 artifacts/
+windows-diagnostics.json
 resources/windows/runtime/
 out/
 coverage/

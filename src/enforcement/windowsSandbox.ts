@@ -15,7 +15,14 @@ export interface WindowsLaunchConfiguration {
   Arguments: string[];
   WorkingDirectory: string;
   Environment: Record<string, string>;
+  Diagnostics?: boolean;
+  TimeoutMilliseconds?: number;
 }
+
+// This deadline includes validating and granting thousands of private npm
+// objects. The native execution limit starts only after the child is resumed.
+export const WINDOWS_PROBE_LAUNCH_TIMEOUT = 120_000;
+export type WindowsVerificationStage = 'setup' | 'native-denial' | 'runtime-preparation' | 'runtime-child-io';
 
 export class WindowsSandbox {
   private launcher?: Promise<string>;
@@ -24,6 +31,7 @@ export class WindowsSandbox {
   public async verify(): Promise<SandboxCapability> {
     const base = { scope: 'managed-agents-only' as const, backend: 'windows-lpac' as const };
     const probe = path.join(this.controlRoot, 'probes', randomUUID());
+    let stage: WindowsVerificationStage = 'setup';
     try {
       if (process.platform !== 'win32') throw new Error('A native Windows host is required.');
       const launcher = await this.buildLauncher();
@@ -40,27 +48,30 @@ export class WindowsSandbox {
       const config = await this.writeConfiguration(root, {
         ProfileName: profileName(root), WritableRoots: [writable], ReadOnlyRoots: [tools],
         Executable: child, Arguments: ['--probe-child', original, writable, policy], WorkingDirectory: writable,
-        Environment: windowsEnvironment(writable, writable),
+        Environment: windowsEnvironment(writable, writable), Diagnostics: true, TimeoutMilliseconds: 5_000,
       });
-      const { stdout } = await execFile(launcher, ['--config', config], { timeout: 30_000, maxBuffer: 128 * 1024 });
-      if (!stdout.includes('GUARD_VERIFIED:5') || await fs.readFile(original, 'utf8') !== 'original' || await fs.readFile(policy, 'utf8') !== 'policy' || await fs.readFile(path.join(writable, 'allowed'), 'utf8') !== 'yes') {
-        throw new Error('Native token/write-denial self-test did not pass.');
+      stage = 'native-denial';
+      const denialProbe = await execFile(launcher, ['--config', config], { timeout: WINDOWS_PROBE_LAUNCH_TIMEOUT, maxBuffer: 128 * 1024 });
+      if (denialProbe.stdout !== 'GUARD_VERIFIED:5' || await fs.readFile(original, 'utf8') !== 'original' || await fs.readFile(policy, 'utf8') !== 'policy' || await fs.readFile(path.join(writable, 'allowed'), 'utf8') !== 'yes') {
+        throw Object.assign(new Error('Native token/write-denial self-test did not pass.'), denialProbe);
       }
       for (const unexpected of [original + '.moved', original + '.folder']) {
         try { await fs.lstat(unexpected); throw new Error('A protected probe path was created or renamed.'); }
         catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
       }
+      stage = 'runtime-preparation';
       const runtime = await this.prepareNodeRuntime('runtime-verification');
       const runtimeConfig = await this.writeConfiguration(root, {
         ProfileName: profileName(this.controlRoot + ':runtime-verification'), WritableRoots: [writable], ReadOnlyRoots: [runtime],
-        Executable: path.join(runtime, 'node.exe'), Arguments: ['-e', `const cp=require('child_process');const child=cp.spawnSync(process.execPath,['-e',"process.stdout.write('PIPE_OK')"],{encoding:'utf8',timeout:5000});if(child.status!==0||child.stdout!=='PIPE_OK')process.exit(81);process.stdout.write('RUNTIME_VERIFIED');`],
-        WorkingDirectory: writable, Environment: windowsEnvironment(writable, writable, runtime),
+        Executable: path.join(runtime, 'node.exe'), Arguments: ['-e', `const cp=require('child_process');process.stderr.write('RUNTIME_STARTING_CHILD_IO\\n');const child=cp.spawnSync(process.execPath,['-e',"process.stdout.write('PIPE_OK')"],{encoding:'utf8',timeout:5000});if(child.status!==0||child.error||child.stdout!=='PIPE_OK'){process.stderr.write('RUNTIME_CHILD_IO_FAILED:'+JSON.stringify({status:child.status,signal:child.signal,error:child.error&&{code:child.error.code,message:child.error.message},stdout:String(child.stdout).slice(-2048),stderr:String(child.stderr).slice(-2048)})+'\\n');process.exit(81)}process.stdout.write('RUNTIME_VERIFIED');`],
+        WorkingDirectory: writable, Environment: windowsEnvironment(writable, writable, runtime), Diagnostics: true, TimeoutMilliseconds: 10_000,
       });
-      const runtimeProbe = await execFile(launcher, ['--config', runtimeConfig], { timeout: 15_000, maxBuffer: 128 * 1024 });
-      if (runtimeProbe.stdout !== 'RUNTIME_VERIFIED') throw new Error('Private runtime child-process I/O verification failed.');
+      stage = 'runtime-child-io';
+      const runtimeProbe = await execFile(launcher, ['--config', runtimeConfig], { timeout: WINDOWS_PROBE_LAUNCH_TIMEOUT, maxBuffer: 128 * 1024 });
+      if (runtimeProbe.stdout !== 'RUNTIME_VERIFIED') throw Object.assign(new Error('Private runtime child-process I/O verification failed.'), runtimeProbe);
       return { ...base, available: true, reason: 'Native Windows LPAC token, original-write denial and private runtime child I/O verified. Protected AI Terminal only; ordinary AI extensions are outside this boundary. No Docker or WSL required.' };
     } catch (error) {
-      return { ...base, available: false, reason: `Windows isolation verification failed; no unconfined fallback: ${error instanceof Error ? error.message : String(error)}` };
+      return { ...base, available: false, reason: formatWindowsVerificationFailure(stage, error) };
     } finally { await fs.rm(probe, { recursive: true, force: true }).catch(() => undefined); }
   }
 
@@ -110,14 +121,20 @@ export class WindowsSandbox {
     const npmCompatibility = await fs.readFile(path.join(bundle, '..', 'npm-private-roots.cjs'));
     const launchers = await Promise.all(['codex.cmd', 'codex.cjs'].map(async name => ({ name, bytes: await fs.readFile(path.join(bundle, '..', name)) })));
     if (sha256(sourceBytes) !== manifest.nodeSha256 || sha256(npmArchive) !== manifest.npmSha256) throw new Error('Private Windows runtime checksum mismatch. Reinstall a tested package.');
+    const build: WindowsRuntimeBuild = { nodeSha256: manifest.nodeSha256, npmSha256: manifest.npmSha256, npmCompatibilitySha256: sha256(npmCompatibility), launcherSha256: Object.fromEntries(launchers.map(launcher => [launcher.name, sha256(launcher.bytes)])) };
+    const cachedFiles: Record<string, string> = { 'node.exe': manifest.nodeSha256 };
+    for (const launcher of launchers) cachedFiles[`guard-bin/${launcher.name}`] = sha256(launcher.bytes);
+    for (const name of ['npm.cmd', 'npx.cmd']) cachedFiles[name] = sha256(await fs.readFile(path.join(bundle, name)));
     // Keep executable paths below the Windows loader limit even for nested
     // VS Code profiles. A 128-bit cache key matches the profile identity size;
     // complete binary/archive SHA-256 verification above remains unchanged.
     const runtimeKey = createHash('sha256').update(sourceBytes).update(manifest.npmSha256).update(npmCompatibility).update(workspaceIdentity.toLowerCase());
     for (const launcher of launchers) runtimeKey.update(launcher.bytes);
     const runtime = path.join(this.controlRoot, 'node-runtimes', runtimeKey.digest('hex').slice(0, 32));
-    try { await fs.access(path.join(runtime, 'node.exe')); return await fs.realpath(runtime); }
-    catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+    let cached = true;
+    try { await fs.lstat(runtime); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; cached = false; }
+    if (cached) { await validateWindowsRuntimeCache(runtime, build, cachedFiles, npmCompatibility); return fs.realpath(runtime); }
     await fs.mkdir(path.dirname(runtime), { recursive: true });
     const temporary = `${runtime}.${randomUUID()}.tmp`;
     await fs.mkdir(temporary);
@@ -139,11 +156,12 @@ export class WindowsSandbox {
       await fs.writeFile(helper, Buffer.concat([originalHelper, Buffer.from('\n'), npmCompatibility]));
       await fs.mkdir(path.join(temporary, 'guard-bin'));
       for (const launcher of launchers) await fs.writeFile(path.join(temporary, 'guard-bin', launcher.name), launcher.bytes, { flag: 'wx' });
-      await fs.writeFile(path.join(temporary, 'runtime-build.json'), JSON.stringify({ nodeSha256: manifest.nodeSha256, npmSha256: manifest.npmSha256, npmCompatibilitySha256: sha256(npmCompatibility), launcherSha256: Object.fromEntries(launchers.map(launcher => [launcher.name, sha256(launcher.bytes)])) }));
+      await fs.writeFile(path.join(temporary, 'runtime-build.json'), JSON.stringify(build));
       for (const name of ['npm.cmd', 'npx.cmd', 'LICENSE']) await fs.copyFile(path.join(bundle, name), path.join(temporary, name));
       try { await fs.rename(temporary, runtime); }
       catch (error) { if (!['EEXIST', 'ENOTEMPTY', 'EPERM'].includes(String((error as NodeJS.ErrnoException).code))) throw error; await fs.access(path.join(runtime, 'node.exe')); }
     } finally { await fs.rm(temporary, { recursive: true, force: true }); }
+    await validateWindowsRuntimeCache(runtime, build, cachedFiles, npmCompatibility);
     return fs.realpath(runtime);
   }
 
@@ -209,3 +227,49 @@ function digest(input: string): string { return createHash('sha256').update(inpu
 function profileName(input: string): string { return `AIFileGuard.${digest(input)}`; }
 
 function sha256(input: Buffer): string { return createHash('sha256').update(input).digest('hex'); }
+
+export function formatWindowsVerificationFailure(stage: WindowsVerificationStage, error: unknown): string {
+  const detail = error && typeof error === 'object' ? error as Record<string, unknown> : {};
+  const tail = (value: unknown, limit: number) => value === undefined ? '' : String(value).slice(-limit);
+  const stdout = tail(detail.stdout, 4_096), stderr = tail(detail.stderr, 6_144);
+  const nativeStages = [...stderr.matchAll(/\bstage=([a-z-]+)/g)];
+  const nativeStage = nativeStages.at(-1)?.[1];
+  const message = tail(error instanceof Error ? error.message : error, 1_024);
+  return `Windows isolation verification failed; no unconfined fallback: ${JSON.stringify({
+    stage, nativeStage, runtimeStarted: stderr.includes('RUNTIME_STARTING_CHILD_IO'),
+    timedOut: (detail.killed === true && detail.code !== 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') || detail.code === 'ETIMEDOUT' || /execution limit/.test(stderr),
+    code: detail.code, signal: detail.signal, killed: detail.killed, message, stdout, stderr,
+  })}`;
+}
+
+export interface WindowsRuntimeBuild {
+  nodeSha256: string;
+  npmSha256: string;
+  npmCompatibilitySha256: string;
+  launcherSha256: Record<string, string>;
+}
+
+/** Reuse only complete caches matching the verified bundle. Never repair in place. */
+export async function validateWindowsRuntimeCache(runtime: string, expected: WindowsRuntimeBuild, files: Readonly<Record<string, string>>, compatibility?: Buffer): Promise<void> {
+  try {
+    const directory = await fs.lstat(runtime);
+    if (!directory.isDirectory() || directory.isSymbolicLink()) throw new Error('runtime directory is a link or invalid object');
+    const manifestPath = path.join(runtime, 'runtime-build.json');
+    if (!(await fs.lstat(manifestPath)).isFile() || (await fs.lstat(manifestPath)).isSymbolicLink()) throw new Error('build manifest is not a regular file');
+    const actual = JSON.parse(await fs.readFile(manifestPath, 'utf8')) as WindowsRuntimeBuild;
+    for (const field of ['nodeSha256', 'npmSha256', 'npmCompatibilitySha256'] as const) if (actual?.[field] !== expected[field]) throw new Error(`build manifest mismatch: ${field}`);
+    for (const [name, hash] of Object.entries(expected.launcherSha256)) if (actual.launcherSha256?.[name] !== hash) throw new Error(`build manifest mismatch: ${name}`);
+    for (const [name, hash] of Object.entries(files)) {
+      const file = path.join(runtime, name);
+      const stat = await fs.lstat(file);
+      if (!stat.isFile() || stat.isSymbolicLink() || sha256(await fs.readFile(file)) !== hash) throw new Error(`cached file mismatch: ${name}`);
+    }
+    if (compatibility) {
+      const helper = await fs.readFile(path.join(runtime, 'node_modules', 'npm', 'node_modules', '@npmcli', 'arborist', 'lib', 'realpath.js'));
+      const suffix = Buffer.concat([Buffer.from('\n'), compatibility]);
+      if (helper.length <= suffix.length || !helper.subarray(-suffix.length).equals(suffix) || sha256(helper.subarray(0, -suffix.length)) !== '54fb13b5b30d62115123b24e7b09b28d1ea6fa5363a81aae9ecd337de323662f') throw new Error('cached npm compatibility helper mismatch');
+    }
+  } catch (error) {
+    throw new Error(`Private Windows runtime cache is incomplete or changed; refusing reuse. Close protected terminals and remove this cache manually before retrying: ${runtime}. ${error instanceof Error ? error.message : String(error)}`);
+  }
+}

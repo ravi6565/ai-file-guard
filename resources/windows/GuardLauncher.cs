@@ -20,6 +20,10 @@ public static class GuardLauncher
     private const int SecurityCapabilitiesAttribute = 0x20009;
     private const int AllApplicationPackagesPolicyAttribute = 0x2000F;
     private const int HandleListAttribute = 0x20002;
+    private static readonly Stopwatch elapsed = Stopwatch.StartNew();
+    private static string stage = "configuration";
+    private static bool diagnostics;
+    private static long objectsInspected, aclUpdates, nextProgress;
     public sealed class Configuration
     {
         public string ProfileName;
@@ -29,6 +33,10 @@ public static class GuardLauncher
         public string[] Arguments;
         public string WorkingDirectory;
         public Dictionary<string, string> Environment;
+        // Zero retains the interactive terminal's unlimited lifetime. Only
+        // trusted probe configurations should set a finite execution limit.
+        public int TimeoutMilliseconds;
+        public bool? Diagnostics;
     }
 
     public static int Main(string[] args)
@@ -41,7 +49,12 @@ public static class GuardLauncher
             if (args.Length != 2 || args[0] != "--config") throw new ArgumentException("Expected --config <trusted launch file>.");
             Configuration config = new JavaScriptSerializer().Deserialize<Configuration>(File.ReadAllText(args[1]));
             uint consoleMode;
-            if (GetConsoleMode(GetStdHandle(-10), out consoleMode))
+            bool consoleInput = GetConsoleMode(GetStdHandle(-10), out consoleMode);
+            // Captured verification needs progress even when its host times
+            // out before Main can report an exception. Keep interactive
+            // terminals quiet, and never mix diagnostics into probe stdout.
+            diagnostics = config != null && (config.Diagnostics ?? !consoleInput);
+            if (consoleInput)
             {
                 // Ctrl+C belongs to the foreground agent, not this waiting host
                 // wrapper. Console events still reach the child. Closing the
@@ -52,9 +65,22 @@ public static class GuardLauncher
         }
         catch (Exception error)
         {
-            Console.Error.WriteLine("AI File Guard native launcher: " + error.Message);
+            Console.Error.WriteLine("AI File Guard native launcher: " + error.Message + " [stage=" + stage + "; elapsed_ms=" + elapsed.ElapsedMilliseconds + "]");
             return 125;
         }
+    }
+
+    private static void Stage(string value)
+    {
+        stage = value;
+        Progress(true);
+    }
+
+    private static void Progress(bool force)
+    {
+        if (!diagnostics || (!force && elapsed.ElapsedMilliseconds < nextProgress)) return;
+        nextProgress = elapsed.ElapsedMilliseconds + 2000;
+        Console.Error.WriteLine("AI File Guard native: stage=" + stage + "; elapsed_ms=" + elapsed.ElapsedMilliseconds + "; objects=" + objectsInspected + "; acl_updates=" + aclUpdates);
     }
 
     private static void Check(bool success, string operation)
@@ -70,7 +96,9 @@ public static class GuardLauncher
     {
         if (config == null || String.IsNullOrEmpty(config.ProfileName) || !config.ProfileName.StartsWith("AIFileGuard.", StringComparison.Ordinal) || config.WritableRoots == null || config.WritableRoots.Length == 0)
             throw new ArgumentException("Invalid sandbox configuration.");
+        if (config.TimeoutMilliseconds < 0) throw new ArgumentException("A probe timeout must be nonnegative.");
         if (!Path.IsPathRooted(config.Executable) || !Path.IsPathRooted(config.WorkingDirectory)) throw new ArgumentException("Absolute executable and working-directory paths are required.");
+        Stage("create-profile");
         IntPtr packageSid;
         int hr = CreateAppContainerProfile(config.ProfileName, "AI File Guard", "Managed AI terminal", IntPtr.Zero, 0, out packageSid);
         if (hr < 0)
@@ -86,8 +114,11 @@ public static class GuardLauncher
         try
         {
             SecurityIdentifier identity = new SecurityIdentifier(packageSid);
+            Stage("grant-writable-trees");
             foreach (string root in config.WritableRoots) GrantPrivateTree(Path.GetFullPath(root), identity, true);
+            Stage("grant-readonly-trees");
             foreach (string root in config.ReadOnlyRoots ?? new string[0]) GrantPrivateTree(Path.GetFullPath(root), identity, false);
+            Stage("prepare-process");
             // LPAC opts out of the broad ALL APPLICATION PACKAGES grant. No
             // original project, policy directory, or parent directory is granted.
             // Internet client excludes private-network/server capabilities.
@@ -144,17 +175,22 @@ public static class GuardLauncher
             try { Marshal.StructureToPtr(limits, limitsBuffer, false); Check(SetInformationJobObject(job, 9, limitsBuffer, (uint)limitsSize), "Set kill-on-close job"); }
             finally { Marshal.FreeHGlobal(limitsBuffer); }
             // The process is never resumed before assignment to its job succeeds.
+            Stage("create-process");
             Check(CreateProcess(config.Executable, command, IntPtr.Zero, IntPtr.Zero, true, 0x80000 | 0x400 | 4, environment, config.WorkingDirectory, ref startup, out process), "Create LPAC process");
             // Query the exact suspended child's token from the trusted parent,
             // before allowing any agent instruction to execute.
+            Stage("verify-token");
             VerifyToken(process.hProcess, packageSid);
             Check(AssignProcessToJobObject(job, process.hProcess), "Assign process job");
             Check(ResumeThread(process.hThread) != UInt32.MaxValue, "Resume isolated process");
             resumed = true;
-            uint wait = WaitForSingleObject(process.hProcess, UInt32.MaxValue);
+            Stage("wait-child");
+            uint wait = WaitForSingleObject(process.hProcess, config.TimeoutMilliseconds == 0 ? UInt32.MaxValue : (uint)config.TimeoutMilliseconds);
+            if (wait == 0x102) throw new TimeoutException("Isolated process exceeded its " + config.TimeoutMilliseconds + " ms execution limit; terminating its job.");
             Check(wait == 0, "Wait for isolated process");
             uint exit;
             Check(GetExitCodeProcess(process.hProcess, out exit), "Read isolated exit code");
+            Stage("child-exited");
             return unchecked((int)exit);
         }
         finally
@@ -222,6 +258,8 @@ public static class GuardLauncher
         {
             BY_HANDLE_FILE_INFORMATION info;
             Check(GetFileInformationByHandle(handle, out info), "Inspect sandbox-private object");
+            objectsInspected++;
+            Progress(false);
             if ((info.FileAttributes & 0x400) != 0 || info.NumberOfLinks > 1) throw new IOException("Reparse points and hard links are not allowed in sandbox-private storage: " + root);
             directory = (info.FileAttributes & 0x10) != 0;
             StringBuilder actual = new StringBuilder(32768);
@@ -252,16 +290,23 @@ public static class GuardLauncher
                     if ((acl[i].AceFlags & AceFlags.Inherited) != 0 && insert == acl.Count) insert = i;
                 }
                 if (metadataOnly && !granted) throw new IOException("Sandbox-private storage is busy and has not been granted to this profile. Close its other terminals and retry: " + root);
-                if (!granted) acl.InsertAce(insert, new CommonAce(flags, AceQualifier.AccessAllowed, rights, identity, false, null));
-                byte[] aclBytes = new byte[acl.BinaryLength]; acl.GetBinaryForm(aclBytes, 0);
-                IntPtr aclBuffer = Marshal.AllocHGlobal(aclBytes.Length);
-                try
+                // Existing grants still require handle/path/link validation,
+                // but rewriting an identical DACL on every npm file adds
+                // thousands of unnecessary disk/antivirus operations per run.
+                if (!granted)
                 {
-                    Marshal.Copy(aclBytes, 0, aclBuffer, aclBytes.Length);
-                    error = metadataOnly ? 0 : SetSecurityInfo(handle, 1, 4, IntPtr.Zero, IntPtr.Zero, aclBuffer, IntPtr.Zero);
-                    if (error != 0) throw new Win32Exception((int)error, "Grant sandbox-private ACL");
+                    acl.InsertAce(insert, new CommonAce(flags, AceQualifier.AccessAllowed, rights, identity, false, null));
+                    byte[] aclBytes = new byte[acl.BinaryLength]; acl.GetBinaryForm(aclBytes, 0);
+                    IntPtr aclBuffer = Marshal.AllocHGlobal(aclBytes.Length);
+                    try
+                    {
+                        Marshal.Copy(aclBytes, 0, aclBuffer, aclBytes.Length);
+                        error = SetSecurityInfo(handle, 1, 4, IntPtr.Zero, IntPtr.Zero, aclBuffer, IntPtr.Zero);
+                        if (error != 0) throw new Win32Exception((int)error, "Grant sandbox-private ACL");
+                        aclUpdates++;
+                    }
+                    finally { Marshal.FreeHGlobal(aclBuffer); }
                 }
-                finally { Marshal.FreeHGlobal(aclBuffer); }
             }
             finally { LocalFree(descriptor); }
             if (writable && !metadataOnly) SetLowIntegrity(handle, directory);

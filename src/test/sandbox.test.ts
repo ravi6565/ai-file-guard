@@ -4,7 +4,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { execFile as execFileCallback } from 'node:child_process';
 import { promisify } from 'node:util';
-import { ManagedSandbox, macProfile, sandboxEnvironment } from '../enforcement/managedSandbox';
+import { ManagedSandbox, SandboxCapability, macProfile, sandboxEnvironment } from '../enforcement/managedSandbox';
 import { LocalManifestStore } from '../core/localManifestStore';
 import { LockManager } from '../core/lockManager';
 import { PathResolver } from '../core/pathResolver';
@@ -29,6 +29,86 @@ describe('Managed sandbox profile', () => {
     const result = await new ManagedSandbox('/unused', 'linux').verify();
     assert.equal(result.available, false);
   });
+});
+
+describe('Managed sandbox verification cache', () => {
+  const unavailable: SandboxCapability = { available: false, backend: 'windows-lpac', scope: 'managed-agents-only', reason: 'Temporary runtime failure.' };
+  const available: SandboxCapability = { available: true, backend: 'macos-seatbelt', scope: 'managed-agents-only', reason: 'OS denial verified.' };
+  const deferred = () => {
+    let resolve!: (capability: SandboxCapability) => void;
+    let reject!: (error: Error) => void;
+    const promise = new Promise<SandboxCapability>((accept, fail) => { resolve = accept; reject = fail; });
+    return { promise, resolve, reject };
+  };
+  class ProbeSandbox extends ManagedSandbox {
+    public probes = 0;
+    public constructor(private readonly results: Promise<SandboxCapability>[]) { super('/unused', 'darwin'); }
+    protected override probe(): Promise<SandboxCapability> {
+      this.probes++;
+      const result = this.results.shift();
+      assert.ok(result, 'Unexpected extra verification probe.');
+      return result;
+    }
+  }
+
+  it('automatically retries an unavailable startup probe on the next ordinary verification', async () => {
+    const sandbox = new ProbeSandbox([Promise.resolve(unavailable), Promise.resolve(available)]);
+    assert.equal((await sandbox.verify()).available, false);
+    assert.equal((await sandbox.verify()).available, true);
+    assert.equal(sandbox.probes, 2);
+  });
+
+  it('automatically retries a rejected probe without requiring the explicit retry command', async () => {
+    const first = deferred();
+    const sandbox = new ProbeSandbox([first.promise, Promise.resolve(available)]);
+    const verification = sandbox.verify();
+    first.reject(new Error('Native token query failed.'));
+    await assert.rejects(verification, /Native token query failed/);
+    assert.equal((await sandbox.verify()).available, true);
+    assert.equal(sandbox.probes, 2);
+  });
+
+  it('shares an in-flight probe between concurrent callers', async () => {
+    const first = deferred();
+    const sandbox = new ProbeSandbox([first.promise]);
+    const verification = sandbox.verify();
+    assert.equal(sandbox.verify(), verification);
+    assert.equal(sandbox.probes, 1);
+    first.resolve(available);
+    assert.equal(await verification, available);
+  });
+
+  it('retains a successful macOS verification for later calls', async () => {
+    const sandbox = new ProbeSandbox([Promise.resolve(available)]);
+    const verification = sandbox.verify();
+    assert.equal(await verification, available);
+    assert.equal(sandbox.verify(), verification);
+    assert.equal(sandbox.probes, 1);
+  });
+
+  for (const failure of ['unavailable', 'rejected'] as const) {
+    for (const newerState of ['pending', 'successful'] as const) {
+      it(`keeps a newer ${newerState} verification when an older probe is ${failure}`, async () => {
+        const first = deferred(); const second = deferred();
+        const sandbox = new ProbeSandbox([first.promise, second.promise]);
+        const older = sandbox.verify();
+        const newer = sandbox.verify(true);
+        assert.notEqual(older, newer);
+        if (newerState === 'successful') { second.resolve(available); await newer; }
+        if (failure === 'unavailable') {
+          first.resolve(unavailable);
+          assert.equal(await older, unavailable);
+        } else {
+          first.reject(new Error('Older probe failed.'));
+          await assert.rejects(older, /Older probe failed/);
+        }
+        assert.equal(sandbox.verify(), newer);
+        assert.equal(sandbox.probes, 2);
+        if (newerState === 'pending') { second.resolve(available); await newer; }
+        assert.equal(sandbox.verify(), newer);
+      });
+    }
+  }
 });
 
 // Run with npm run test:sandbox on a real, unrestricted macOS test host.

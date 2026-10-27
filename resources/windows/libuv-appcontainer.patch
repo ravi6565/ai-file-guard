@@ -1,48 +1,77 @@
 diff --git a/src/win/pipe.c b/src/win/pipe.c
-index cd11859d347..6d26d6cec82 100644
 --- a/src/win/pipe.c
 +++ b/src/win/pipe.c
-@@ -106,8 +106,42 @@ static int includes_nul(const char *s, size_t n) {
+@@ -106,8 +106,41 @@
  }
- 
- 
+
+
+-static void uv__unique_pipe_name(unsigned long long ptr, char* name, size_t size) {
+-  snprintf(name, size, "\\\\?\\pipe\\uv\\%llu-%lu", ptr, GetCurrentProcessId());
 +static int uv_is_app_container_;
++static DWORD uv_app_container_error_;
 +static uv_once_t uv_is_app_container_guard_ = UV_ONCE_INIT;
 +
 +
-+/* Is this process running under Windows AppContainer? */
-+/* Detection algorithm from https://learn.microsoft.com/en-us/windows/win32/secauthz/appcontainer-for-legacy-applications- */
++/* Private runtime: query the current-token pseudo-handle instead of opening
++ * a token handle subject to its DACL. A failed query is not a negative result. */
 +static void uv__init__is_app_container(void) {
-+  HANDLE token;
 +  DWORD ac;
 +  DWORD len;
-+  int ok;
 +
-+  if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) {
-+    uv_is_app_container_ = 0;
-+    return;
-+  }
 +  ac = 0;
 +  len = sizeof(ac);
-+  ok = GetTokenInformation(token, TokenIsAppContainer, &ac, len, &len);
-+  CloseHandle(token);
-+  uv_is_app_container_ = ok && ac != 0;
++  if (!GetTokenInformation(GetCurrentProcessToken(),
++                           TokenIsAppContainer,
++                           &ac,
++                           len,
++                           &len)) {
++    uv_app_container_error_ = GetLastError();
++    return;
++  }
++  uv_is_app_container_ = ac != 0;
 +}
 +
 +
-+/* Is this process running under Windows AppContainer? */
-+/* Cached form for repeated use in the process. */
-+static int uv__is_appcontainer(void) {
++static int uv__unique_pipe_name(unsigned long long ptr, char* name, size_t size) {
 +  uv_once(&uv_is_app_container_guard_, uv__init__is_app_container);
-+  return uv_is_app_container_;
-+}
++  if (uv_app_container_error_ != ERROR_SUCCESS)
++    return uv_app_container_error_;
 +
-+
- static void uv__unique_pipe_name(unsigned long long ptr, char* name, size_t size) {
--  snprintf(name, size, "\\\\?\\pipe\\uv\\%llu-%lu", ptr, GetCurrentProcessId());
++  /* Upstream AppContainer fix: use its private LOCAL pipe namespace. */
 +  snprintf(name, size, "\\\\?\\pipe\\%suv\\%llu-%lu",
-+           uv__is_appcontainer() ? "LOCAL\\" : "",
++           uv_is_app_container_ ? "LOCAL\\" : "",
 +           ptr, GetCurrentProcessId());
++  return 0;
  }
- 
- 
+
+
+@@ -209,11 +242,14 @@
+ static int uv__pipe_server(
+     HANDLE* pipeHandle_ptr, DWORD access,
+     char* name, size_t nameSize, unsigned long long random) {
+-  HANDLE pipeHandle;
++  HANDLE pipeHandle = INVALID_HANDLE_VALUE;
++  unsigned int attempts = 0;
+   int err;
+
+   for (;;) {
+-    uv__unique_pipe_name(random, name, nameSize);
++    err = uv__unique_pipe_name(random, name, nameSize);
++    if (err)
++      goto error;
+
+     pipeHandle = CreateNamedPipeA(name,
+       access | FILE_FLAG_FIRST_PIPE_INSTANCE,
+@@ -229,6 +265,12 @@
+     if (err != ERROR_PIPE_BUSY && err != ERROR_ACCESS_DENIED) {
+       goto error;
+     }
++
++    /* Private runtime: access denied can be a sandbox policy denial, not
++     * a name collision. Keep collision retries finite and return the actual
++     * Windows error instead of spinning before child-process timers start. */
++    if (++attempts >= 128)
++      goto error;
+
+     /* Pipe name collision.  Increment the random number and try again. */
+     random++;

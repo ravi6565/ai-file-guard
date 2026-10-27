@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.12.3 — Windows verification test candidate
+
+- Separate slow Windows permission setup from bounded runtime execution and retain stage/timing diagnostics on verification errors.
+- Avoid rewriting matching private-runtime DACLs; retain path, link and token checks.
+- Retry failed verification without requiring a reload, and reject changed or incomplete private runtime caches on reuse.
+- Harden the private libuv AppContainer patch against token-query errors and unbounded pipe-name retries. A new private runtime build and native Windows acceptance are required.
+- Add a standalone Windows diagnostic report and explicit Windows Server 2022/2025 CI coverage. The reported client build 26300 still needs acceptance.
+- Support clean local runtime builds without a CI-only temporary-directory variable.
+
 ## 0.12.2 — Marketplace resource-link correction
 
 - Remove the optional Issues resource generated from bugs.email; Marketplace rejected its mailto URL. Keep public support and security contact details in the README and author metadata.

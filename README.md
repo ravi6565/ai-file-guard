@@ -1,12 +1,14 @@
 # AI File Guard
 
-**Windows x64 + macOS Apple Silicon · Version 0.12.2 · Publisher: ravikiranv · Support: [ravikiranv8919@gmail.com](mailto:ravikiranv8919@gmail.com)**
+**Windows x64 + macOS Apple Silicon · Version 0.12.3 test candidate · Publisher: ravikiranv · Support: [ravikiranv8919@gmail.com](mailto:ravikiranv8919@gmail.com)**
 
 AI File Guard 0.12 combines local file/folder locks, synchronized agent instructions, and native managed AI terminals. Your normal editor stays writable. AI tools launched in **Protected AI Terminal** cannot write original projects directly; the apply service rejects changes to locked originals.
 
 **Use the Protected AI Terminal for protection. Ordinary Codex, Copilot or Claude chat extensions in your unrestricted VS Code window are outside this boundary. This extension does not intercept those sessions.**
 
 Release targets are local VS Code desktop on macOS and Windows, with no Docker or WSL dependency. macOS uses `sandbox-exec`; Windows uses a native less-privileged AppContainer (LPAC) and a kill-on-close process job. Every machine must pass native token/write-denial verification; failed isolation never falls back to an unrestricted terminal. Native Windows, real-terminal and installed-VSIX checks pass on hosted Windows CI. Signed-in provider workflows still require local acceptance. Linux and remote/browser workspaces have no supported enforcement backend. Generated instruction files provide cooperative guidance, not universal AI write blocking. Independent security review and signed-in provider acceptance remain open.
+
+Windows 0.12.2 has a reported verification timeout on build 26300. The hosted release passed on Windows Server build 26100. Corrections in this working tree still need a new runtime build and native acceptance on the affected PC; see the [Windows review and diagnostic procedure](docs/WINDOWS-REVIEW-2026-10-27.md).
 
 On Windows, the .NET Framework compiler bundled with Windows builds the launcher locally. The Windows x64 package includes a private Node.js/npm runtime with the upstream AppContainer pipe fix; it does not replace your installed Node. Untested stock runtimes are not used as a fallback. Windows code grants access only to private copies/home/temp and runtime files; it does not change original-project permissions. No administrator elevation or loopback exemptions are requested. Windows uses the OS internet-client network capability rather than the macOS CONNECT proxy. Windows tests cover child processes, aliases, long paths and host-control denial. Codex 0.164.0 installation/version smoke passed inside LPAC without sign-in or a model request.
 
@@ -56,6 +58,7 @@ This is not universal control over arbitrary programs using your normal account.
 npm ci
 npm run lint
 npm run test:unit
+node --test scripts/test-windows-diagnostics.cjs
 npm run test:sandbox
 npm run test:integration
 npm run package:release

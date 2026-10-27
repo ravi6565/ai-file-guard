@@ -27,8 +27,18 @@ export class ManagedSandbox {
   public constructor(private readonly controlRoot: string, private readonly platform: NodeJS.Platform = process.platform) {}
 
   public verify(retry = false): Promise<SandboxCapability> {
-    if (retry) this.verification = undefined;
-    return this.verification ??= this.probe();
+    if (this.verification && !retry) return this.verification;
+    const verification: Promise<SandboxCapability> = this.probe().then(capability => {
+      // Share active probes and retain successful verification. A temporary
+      // startup failure must not block later Lock clicks until VS Code reloads.
+      if (!capability.available && this.verification === verification) this.verification = undefined;
+      return capability;
+    }, error => {
+      if (this.verification === verification) this.verification = undefined;
+      throw error;
+    });
+    this.verification = verification;
+    return verification;
   }
   public async dispose(): Promise<void> { await this.proxy.dispose(); }
 
@@ -73,7 +83,7 @@ export class ManagedSandbox {
     };
   }
 
-  private async probe(): Promise<SandboxCapability> {
+  protected async probe(): Promise<SandboxCapability> {
     const base = { scope: 'managed-agents-only' as const };
     if (this.platform === 'win32') return new WindowsSandbox(this.controlRoot).verify();
     if (this.platform !== 'darwin') return { ...base, available: false, backend: 'unsupported', reason: 'Managed isolation requires Windows LPAC or macOS sandbox-exec. No unconfined fallback will be launched.' };
