@@ -163,12 +163,18 @@ native('Native Windows LPAC enforcement', function () {
   });
 
   it('starts its execution deadline after setup and terminates the complete timed-out job', async () => {
-    const launch = await runtime.prepareCommand(staged, original, path.join(nodeRuntime, 'node.exe'), ['-e', `const child=require('child_process').spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore'});require('fs').writeFileSync('descendant.pid',String(child.pid));process.stdout.write('TIMEOUT_CHILD_STARTED');setInterval(()=>{},1000);`], nodeRuntime);
+    const nullPaths = ['NUL', String.raw`\\.\NUL`, String.raw`\\?\GLOBALROOT\Device\Null`];
+    const script = `const fs=require('fs'),cp=require('child_process');const nulls=[];
+      for(const name of ${JSON.stringify(nullPaths)})for(const flags of ['r','w','r+']){try{const fd=fs.openSync(name,flags);fs.closeSync(fd);nulls.push({name,flags,ok:true})}catch(e){nulls.push({name,flags,error:e.code})}}
+      const ignored=cp.spawnSync(process.execPath,['-e','0'],{stdio:'ignore',timeout:1000});process.stdout.write('NULL_DEVICE_DIAGNOSTIC:'+JSON.stringify({nulls,ignored:{status:ignored.status,error:ignored.error&&ignored.error.code}})+'\\n');
+      const child=cp.spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'pipe'});child.stdin.end();child.stdout.resume();child.stderr.resume();fs.writeFileSync('descendant.pid',String(child.pid));process.stdout.write('TIMEOUT_CHILD_STARTED');setInterval(()=>{},1000);`;
+    const launch = await runtime.prepareCommand(staged, original, path.join(nodeRuntime, 'node.exe'), ['-e', script], nodeRuntime);
     const config = JSON.parse(await fs.readFile(launch.profilePath, 'utf8'));
     config.Diagnostics = true; config.TimeoutMilliseconds = 5_000;
     await fs.writeFile(launch.profilePath, JSON.stringify(config));
     await assert.rejects(execFile(launch.executable, launch.arguments, { cwd: launch.cwd, env: launch.environment, timeout: WINDOWS_PROBE_LAUNCH_TIMEOUT }), error => {
       const failure = error as Error & { code: number; killed: boolean; stdout: string; stderr: string };
+      console.log(failure.stdout.split('\n').find(line => line.startsWith('NULL_DEVICE_DIAGNOSTIC:')));
       assert.equal(failure.code, 125, failure.message);
       assert.equal(failure.killed, false, 'The native child limit must run before the host setup deadline.');
       assert.match(failure.stdout, /TIMEOUT_CHILD_STARTED/);
