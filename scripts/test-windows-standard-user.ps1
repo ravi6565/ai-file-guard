@@ -34,6 +34,11 @@ $ErrorActionPreference = 'Stop'
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $principal = [Security.Principal.WindowsPrincipal]::new($identity)
 if ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { throw 'Expected a standard account; refusing to count elevated execution as acceptance.' }
+# Start-Process -Credential inherits the CI administrator's environment. Give
+# the standard account its own temporary directory before starting any tools.
+$env:TEMP = Join-Path $Control 'standard-temp'
+$env:TMP = $env:TEMP
+New-Item -ItemType Directory -Force -Path $env:TEMP | Out-Null
 & "$Extension/resources/windows/runtime/node.exe" "$Extension/scripts/diagnose-windows.cjs" --extension $Extension --control $Control --output $Report
 $code = $LASTEXITCODE
 if (Test-Path -LiteralPath $Report) {

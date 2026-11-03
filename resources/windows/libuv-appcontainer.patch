@@ -75,3 +75,76 @@ diff --git a/src/win/pipe.c b/src/win/pipe.c
 
      /* Pipe name collision.  Increment the random number and try again. */
      random++;
+diff --git a/src/win/process-stdio.c b/src/win/process-stdio.c
+--- a/src/win/process-stdio.c
++++ b/src/win/process-stdio.c
+@@ -141,6 +141,60 @@
+ }
+
+ 
++/* Private runtime: the trusted launcher provides only null-device handles.
++ * Reuse those after an AppContainer cannot reopen NUL; never change the global
++ * device DACL or substitute a writable host file. Descendants inherit the same
++ * harmless handles. Environment values cannot grant access to new objects. */
++static int uv__guard_nul_handle(HANDLE* handle_ptr,
++                                DWORD access,
++                                int original_error) {
++  DWORD app_container;
++  DWORD length;
++  DWORD count;
++  WCHAR value[32];
++  WCHAR* end;
++  const WCHAR* key;
++  unsigned long long number;
++  HANDLE source;
++  HANDLE duplicate;
++  unsigned int i;
++
++  app_container = 0;
++  length = sizeof(app_container);
++  if (!GetTokenInformation(GetCurrentProcessToken(),
++                           TokenIsAppContainer,
++                           &app_container,
++                           length,
++                           &length) || !app_container)
++    return original_error;
++
++  key = (access & FILE_WRITE_DATA) ? L"AI_FILE_GUARD_NULL_WRITE_HANDLE"
++                                   : L"AI_FILE_GUARD_NULL_READ_HANDLE";
++  count = GetEnvironmentVariableW(key, value, ARRAY_SIZE(value));
++  if (count == 0 || count >= ARRAY_SIZE(value))
++    return original_error;
++  for (i = 0; i < count; i++)
++    if (value[i] < L'0' || value[i] > L'9')
++      return original_error;
++  number = _wcstoui64(value, &end, 10);
++  if (*end != L'\0' || number == 0 || (unsigned long long) (uintptr_t) number != number)
++    return original_error;
++  source = (HANDLE) (uintptr_t) number;
++  if (source == INVALID_HANDLE_VALUE || GetFileType(source) != FILE_TYPE_CHAR)
++    return original_error;
++  if (!DuplicateHandle(GetCurrentProcess(),
++                       source,
++                       GetCurrentProcess(),
++                       &duplicate,
++                       access,
++                       TRUE,
++                       0))
++    return GetLastError();
++  *handle_ptr = duplicate;
++  return 0;
++}
++
++
+ int uv__create_nul_handle(HANDLE* handle_ptr,
+     DWORD access) {
+   HANDLE handle;
+@@ -158,7 +212,7 @@
+                        0,
+                        NULL);
+   if (handle == INVALID_HANDLE_VALUE) {
+-    return GetLastError();
++    return uv__guard_nul_handle(handle_ptr, access, GetLastError());
+   }
+
+   *handle_ptr = handle;

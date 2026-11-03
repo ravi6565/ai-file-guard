@@ -140,14 +140,17 @@ public static class GuardLauncher
             Marshal.WriteInt32(policyBuffer, 1); // PROCESS_CREATION_ALL_APPLICATION_PACKAGES_OPT_OUT
             Check(UpdateProcThreadAttribute(attributes, 0, new IntPtr(AllApplicationPackagesPolicyAttribute), policyBuffer, new IntPtr(4), IntPtr.Zero, IntPtr.Zero), "Require less-privileged AppContainer");
 
-            // Only duplicate stdin/out/err. Never inherit the job, policy files,
-            // original-file handles, tokens, or arbitrary host handles.
+            // Inherit stdio and two narrowly scoped null-device handles. LPAC
+            // cannot reopen the system null device on an unprepared machine.
+            // Never inherit the job, policy files, originals or host tokens.
             foreach (int descriptor in new int[] { -10, -11, -12 })
             {
                 IntPtr handle;
                 Check(DuplicateHandle(GetCurrentProcess(), GetStdHandle(descriptor), GetCurrentProcess(), out handle, 0, true, 2), "Duplicate standard handle");
                 inherited.Add(handle);
             }
+            inherited.Add(InheritedNullHandle(0x120089)); // FILE_GENERIC_READ
+            inherited.Add(InheritedNullHandle(0x120196)); // FILE_GENERIC_WRITE | FILE_READ_ATTRIBUTES
             handlesBuffer = Marshal.AllocHGlobal(IntPtr.Size * inherited.Count);
             Marshal.Copy(inherited.ToArray(), 0, handlesBuffer, inherited.Count);
             Check(UpdateProcThreadAttribute(attributes, 0, new IntPtr(HandleListAttribute), handlesBuffer, new IntPtr(IntPtr.Size * inherited.Count), IntPtr.Zero, IntPtr.Zero), "Restrict inherited handles");
@@ -162,8 +165,11 @@ public static class GuardLauncher
             foreach (KeyValuePair<string, string> entry in config.Environment)
             {
                 if (String.IsNullOrEmpty(entry.Key) || entry.Key.IndexOfAny(new char[] { '=', '\0' }) >= 0 || entry.Value.IndexOf('\0') >= 0) throw new ArgumentException("Invalid environment entry.");
+                if (String.Equals(entry.Key, "AI_FILE_GUARD_NULL_READ_HANDLE", StringComparison.OrdinalIgnoreCase) || String.Equals(entry.Key, "AI_FILE_GUARD_NULL_WRITE_HANDLE", StringComparison.OrdinalIgnoreCase)) continue;
                 entries.Add(entry.Key + "=" + entry.Value);
             }
+            entries.Add("AI_FILE_GUARD_NULL_READ_HANDLE=" + inherited[3].ToInt64().ToString(System.Globalization.CultureInfo.InvariantCulture));
+            entries.Add("AI_FILE_GUARD_NULL_WRITE_HANDLE=" + inherited[4].ToInt64().ToString(System.Globalization.CultureInfo.InvariantCulture));
             entries.Sort(StringComparer.OrdinalIgnoreCase);
             environment = Marshal.StringToHGlobalUni(String.Join("\0", entries.ToArray()) + "\0\0");
             job = CreateJobObject(IntPtr.Zero, null);
@@ -205,6 +211,19 @@ public static class GuardLauncher
             foreach (IntPtr buffer in new IntPtr[] { securityBuffer, capabilitiesBuffer, policyBuffer, handlesBuffer, environment }) if (buffer != IntPtr.Zero) Marshal.FreeHGlobal(buffer);
             FreeSid(packageSid);
         }
+    }
+
+    private static IntPtr InheritedNullHandle(uint access)
+    {
+        IntPtr source = CreateFile("\\\\.\\NUL", access, 3, IntPtr.Zero, 3, 0, IntPtr.Zero);
+        Check(source != new IntPtr(-1), "Open null device for isolated stdio");
+        try
+        {
+            IntPtr inherited;
+            Check(DuplicateHandle(GetCurrentProcess(), source, GetCurrentProcess(), out inherited, 0, true, 2), "Duplicate isolated null handle");
+            return inherited;
+        }
+        finally { CloseHandle(source); }
     }
 
     private static IntPtr CapabilitySid(string name)

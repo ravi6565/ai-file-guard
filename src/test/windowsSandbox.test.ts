@@ -194,6 +194,14 @@ native('Native Windows LPAC enforcement', function () {
     assert.fail('A descendant survived the timed-out native job.');
   });
 
+  it('supports ignored child streams without requiring global null-device permission changes', async () => {
+    const grandchild = `const fs=require('fs');if(fs.readFileSync(0).length!==0)process.exit(94);process.stdout.write('discarded');process.stderr.write('discarded');`;
+    const childScript = `const cp=require('child_process');const child=cp.spawnSync(process.execPath,['-e',${JSON.stringify(grandchild)}],{stdio:'ignore',timeout:5000});if(child.error||child.status!==0)throw Error('Ignored descendant streams failed:'+JSON.stringify({status:child.status,error:child.error&&child.error.code}));`;
+    const result = await run(`const cp=require('child_process');const child=cp.spawnSync(process.execPath,['-e',${JSON.stringify(childScript)}],{stdio:'ignore',timeout:10000});
+      if(child.error||child.status!==0)throw Error('Ignored stdio is unavailable inside LPAC:'+JSON.stringify({status:child.status,error:child.error&&child.error.code,signal:child.signal}));process.stdout.write('IGNORED_STDIO_VERIFIED');`);
+    assert.equal(result.stdout, 'IGNORED_STDIO_VERIFIED');
+  });
+
   it('refuses staged junctions and hard-link aliases without modifying original access', async () => {
     const file = path.join(original, 'original.txt'); await fs.writeFile(file, 'original');
     const icacls = path.win32.join(path.win32.dirname(windowsSystemExecutable('cmd.exe')), 'icacls.exe');

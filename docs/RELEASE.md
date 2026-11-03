@@ -1,5 +1,10 @@
 # Release status — 0.12.3
 
+**Publication blocked:** native Windows testing found `spawn EPERM` for child
+processes using ignored standard streams. Captured pipes pass. Keep the explicit
+ignored-stream acceptance test enabled; do not change system null-device ACLs
+or introduce administrator requirements as a release workaround.
+
 AI File Guard 0.12.3 is a release candidate under publisher `ravikiranv`.
 It corrects Windows verification, runtime pipe handling, failure recovery and
 diagnostics. This is a changed native payload, so earlier release passes do not

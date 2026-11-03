@@ -19,6 +19,17 @@ creation, before `spawnSync` can start its own timeout. These changes need nativ
 Windows qualification; they do not establish the cause of the build-26300 report.
 See [Microsoft's pseudo-handle contract](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getcurrentprocesstoken).
 
+The `src/win/process-stdio.c` addition supports Node's ignored streams when
+LPAC cannot reopen `NUL`. The trusted launcher opens two null-device handles
+with read/write rights and includes only those alongside stdin/out/err in the
+explicit inherited-handle list. The patched runtime validates the inherited
+character-device handle and duplicates it with the requested access. Descendant
+Node processes inherit the same harmless handles. No system device ACL is
+changed and no administrator rights are requested. Missing, malformed, invalid
+or insufficient handles fail with the original OS error; there is no host-file
+substitute. Native programs that reopen `NUL` themselves remain subject to the
+OS device policy and require separate provider-workflow acceptance.
+
 This is a private extension runtime, not an official Node binary. It never
 replaces system Node. The build checks the pinned source SHA-256 and produces
 `runtime.json`, node.exe, npm.tar, npm/npx shims and the full upstream LICENSE.
