@@ -59,6 +59,16 @@ jobs:
           if-no-files-found: warn
       - run: npm run test:sandbox
         if: runner.os == 'macOS' || runner.os == 'Windows'
+      - name: Windows acceptance without administrator privileges
+        if: runner.os == 'Windows' && matrix.node == 22
+        shell: pwsh
+        run: ./scripts/test-windows-standard-user.ps1
+      - uses: actions/upload-artifact@v4
+        if: always() && runner.os == 'Windows' && matrix.node == 22
+        with:
+          name: windows-standard-user-${{ matrix.os }}
+          path: windows-standard-user.json
+          if-no-files-found: warn
       - name: Confined Windows CLI installation/version smoke (no sign-in or model call)
         if: runner.os == 'Windows' && matrix.node == 22
         run: node dist/test/checkManagedNetwork.js

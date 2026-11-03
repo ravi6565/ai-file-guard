@@ -8,6 +8,8 @@
 - Harden the private libuv AppContainer patch against token-query errors and unbounded pipe-name retries. A new private runtime build and native Windows acceptance are required.
 - Add a standalone Windows diagnostic report and explicit Windows Server 2022/2025 CI coverage. The reported client build 26300 still needs acceptance.
 - Support clean local runtime builds without a CI-only temporary-directory variable.
+- Correct cross-platform diagnostic tests and private-source README packaging; qualify Windows with a disposable non-administrator account.
+- Update the development-only qs dependency through the compatible npm security fix.
 
 ## 0.12.2 — Marketplace resource-link correction
 

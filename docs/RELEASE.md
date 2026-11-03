@@ -1,10 +1,11 @@
-# Release status — 0.12.2
+# Release status — 0.12.3
 
-AI File Guard 0.12.2 is prepared for the stable Marketplace channel under publisher
-`ravikiranv`. The developer reports successful validation of the 0.11.0 preview.
-Stable packages remove Preview labeling and pre-release metadata while preserving
-the tested runtime behavior. New stable payloads must pass their own platform and
-installed-VSIX checks. Public support/security contact: ravikiranv8919@gmail.com.
+AI File Guard 0.12.3 is a release candidate under publisher `ravikiranv`.
+It corrects Windows verification, runtime pipe handling, failure recovery and
+diagnostics. This is a changed native payload, so earlier release passes do not
+qualify it. Require native and installed-VSIX checks, standard-user Windows
+acceptance and a successful retest on the reported build-26300 PC before upload.
+Public support/security contact: ravikiranv8919@gmail.com.
 
 Build with `npm run package:release`. Targeted VSIX, SHA-256 and metadata sidecars
 go to `artifacts/`. Follow `DEPLOYMENT.md` for acceptance and upload. Windows x64
@@ -14,11 +15,12 @@ resources. No Docker/WSL dependency is required.
 
 ## Release qualification
 
-- Keep the publisher ID, version 0.12.2, target and stable channel consistent in both platform packages.
+- Keep the publisher ID, version 0.12.3, target and stable channel consistent in both platform packages.
 - Run type checks, unit/service regressions, native OS-denial tests, actual protected-terminal checks and installed-package acceptance on each supported host.
 - Verify lock/unlock, recursive folder policy, dynamic instructions, manual editing, preview/apply and persistence.
 - Publish the exact tested VSIX files and check Marketplace validation. Do not upload the old preview packages.
 - Disable the earlier local publisher extension before upgrading; verify imported locks before removing its data. Credentials, sessions and old permission records do not migrate.
+- Retain the CI run, exact source commit, runtime provenance and installed-package checksums. See `WINDOWS-TEST-0.12.3.md` for the affected-PC test.
 
 ## Continuing support and security work
 

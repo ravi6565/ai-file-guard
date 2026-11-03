@@ -5,6 +5,7 @@ scripts/**
 !scripts/diagnose-windows.cjs
 artifacts/
 windows-diagnostics.json
+windows-standard-user.json
 resources/windows/libuv-appcontainer.patch
 test/
 tsconfig.json

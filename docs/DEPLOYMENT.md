@@ -1,4 +1,4 @@
-# Deploying AI File Guard 0.12.2
+# Deploying AI File Guard 0.12.3
 
 Publisher: **ravikiranv**. Extension ID: **ravikiranv.ai-file-guard**.
 Support/security contact: **ravikiranv8919@gmail.com**.
@@ -35,14 +35,14 @@ old `ai-file-guard.ai-file-guard` extension first; verify migrated locks before
 removing old data. Automated package acceptance uses:
 
 ```sh
-npm run test:vsix -- artifacts/ai-file-guard-0.12.2-darwin-arm64.vsix
+npm run test:vsix -- artifacts/ai-file-guard-0.12.3-darwin-arm64.vsix
 ```
 
-For Windows substitute `win32-x64`. Follow `LOCAL-TEST.md` for manual checks.
-The developer reports successful acceptance of the 0.11.0 preview. The stable
-release keeps its runtime behavior and needs fresh package acceptance for the
-changed version/channel. CLI installation/version tests do not independently
-validate authentication or signed-in model workflows.
+For Windows substitute `win32-x64`. Follow `WINDOWS-TEST-0.12.3.md` and
+`LOCAL-TEST.md` for manual checks. Retest on the affected Windows PC before
+publishing this version. Earlier 0.12.2/preview results do not validate the
+changed runtime. CLI installation/version tests do not independently validate
+authentication or signed-in model workflows.
 
 ## Publish the tested files
 
@@ -50,7 +50,7 @@ Open [Manage Publishers & Extensions](https://marketplace.visualstudio.com/manag
 and select **ravikiranv**. For the first upload choose **New extension → Visual
 Studio Code** and select the tested macOS VSIX. If the extension already exists,
 use its update action. Use the same listing's update action to add the Windows
-VSIX at version **0.12.2**. Both packages must use the **stable** release channel,
+VSIX at version **0.12.3**. Both packages must use the **stable** release channel,
 with no Preview label. Upload only `.vsix` files, retaining JSON/checksum sidecars
 as release records. Wait for Marketplace validation, then check both targets and
 install the published build on each supported host.
@@ -59,7 +59,7 @@ Alternatively, after configuring publishing authentication locally, publish the
 exact packages with the installed VSCE CLI:
 
 ```sh
-node node_modules/@vscode/vsce/vsce publish --packagePath artifacts/ai-file-guard-0.12.2-darwin-arm64.vsix artifacts/ai-file-guard-0.12.2-win32-x64.vsix
+node node_modules/@vscode/vsce/vsce publish --packagePath artifacts/ai-file-guard-0.12.3-darwin-arm64.vsix artifacts/ai-file-guard-0.12.3-win32-x64.vsix
 ```
 
 This command uses existing files. Do not rebuild an accepted package or add the

@@ -3,6 +3,7 @@ node_modules/
 dist/
 artifacts/
 windows-diagnostics.json
+windows-standard-user.json
 resources/windows/runtime/
 out/
 coverage/
