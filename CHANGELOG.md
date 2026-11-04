@@ -10,6 +10,8 @@
 - Support clean local runtime builds without a CI-only temporary-directory variable.
 - Correct cross-platform diagnostic tests and private-source README packaging; qualify Windows with a disposable non-administrator account.
 - Update the development-only qs dependency through the compatible npm security fix.
+- Pass private inherited null-device handles to managed Node so ignored child streams can work without changing system device permissions. Verify both captured and ignored I/O before accepting locks; qualify descendants and ordinary-user execution in native tests.
+- Pin compatible security updates inside the bundled npm archive, audit its actual dependency versions, and block Windows runtime artifacts on high/critical advisory findings.
 
 ## 0.12.2 — Marketplace resource-link correction
 

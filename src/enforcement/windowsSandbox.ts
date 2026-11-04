@@ -63,8 +63,8 @@ export class WindowsSandbox {
       const runtime = await this.prepareNodeRuntime('runtime-verification');
       const runtimeConfig = await this.writeConfiguration(root, {
         ProfileName: profileName(this.controlRoot + ':runtime-verification'), WritableRoots: [writable], ReadOnlyRoots: [runtime],
-        Executable: path.join(runtime, 'node.exe'), Arguments: ['-e', `const cp=require('child_process');process.stderr.write('RUNTIME_STARTING_CHILD_IO\\n');const child=cp.spawnSync(process.execPath,['-e',"process.stdout.write('PIPE_OK')"],{encoding:'utf8',timeout:5000});if(child.status!==0||child.error||child.stdout!=='PIPE_OK'){process.stderr.write('RUNTIME_CHILD_IO_FAILED:'+JSON.stringify({status:child.status,signal:child.signal,error:child.error&&{code:child.error.code,message:child.error.message},stdout:String(child.stdout).slice(-2048),stderr:String(child.stderr).slice(-2048)})+'\\n');process.exit(81)}process.stdout.write('RUNTIME_VERIFIED');`],
-        WorkingDirectory: writable, Environment: windowsEnvironment(writable, writable, runtime), Diagnostics: true, TimeoutMilliseconds: 10_000,
+        Executable: path.join(runtime, 'node.exe'), Arguments: ['-e', windowsRuntimeProbeScript()],
+        WorkingDirectory: writable, Environment: windowsEnvironment(writable, writable, runtime), Diagnostics: true, TimeoutMilliseconds: 20_000,
       });
       stage = 'runtime-child-io';
       const runtimeProbe = await execFile(launcher, ['--config', runtimeConfig], { timeout: WINDOWS_PROBE_LAUNCH_TIMEOUT, maxBuffer: 128 * 1024 });
@@ -227,6 +227,14 @@ function digest(input: string): string { return createHash('sha256').update(inpu
 function profileName(input: string): string { return `AIFileGuard.${digest(input)}`; }
 
 function sha256(input: Buffer): string { return createHash('sha256').update(input).digest('hex'); }
+
+export function windowsRuntimeProbeScript(): string {
+  return `const cp=require('child_process');process.stderr.write('RUNTIME_STARTING_CHILD_IO\\n');
+    const check=(child,mode)=>{if(child.status!==0||child.error||(mode==='pipe'&&child.stdout!=='PIPE_OK')){process.stderr.write('RUNTIME_CHILD_IO_FAILED:'+JSON.stringify({mode,status:child.status,signal:child.signal,error:child.error&&{code:child.error.code,message:child.error.message},stdout:String(child.stdout).slice(-2048),stderr:String(child.stderr).slice(-2048)})+'\\n');process.exit(81)}};
+    check(cp.spawnSync(process.execPath,['-e',"process.stdout.write('PIPE_OK')"],{encoding:'utf8',timeout:5000}),'pipe');
+    check(cp.spawnSync(process.execPath,['-e',"process.stdout.write('discarded');process.stderr.write('discarded')"],{stdio:'ignore',timeout:5000}),'ignore');
+    process.stdout.write('RUNTIME_VERIFIED');`;
+}
 
 export function formatWindowsVerificationFailure(stage: WindowsVerificationStage, error: unknown): string {
   const detail = error && typeof error === 'object' ? error as Record<string, unknown> : {};

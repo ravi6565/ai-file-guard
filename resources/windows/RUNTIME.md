@@ -30,6 +30,21 @@ or insufficient handles fail with the original OS error; there is no host-file
 substitute. Native programs that reopen `NUL` themselves remain subject to the
 OS device policy and require separate provider-workflow acceptance.
 
+Both captured pipes and ignored Node child streams must pass the native runtime
+verification before a managed lock is accepted.
+
+The private npm archive retains npm 11.19.1 and applies compatible, checksum-pinned
+updates to undici, brace-expansion, postcss-selector-parser and ip-address.
+`npm-security-updates.json` records each source version, target and SHA-512.
+After a source runtime build, run `node scripts/prepare-windows-npm.cjs`; CI runs
+this step before uploading the final runtime. It checks replacement dependencies,
+rejects archive links/traversal, retains package licenses, and checks the actual
+bundled versions against the registry advisory API. High/critical findings block
+the artifact. Moderate findings remain visible in `windows-npm-audit.json`.
+Packaging requires the security-plan hash in runtime provenance. No package
+lifecycle scripts run during this derivation, and the base Arborist helper is
+unchanged before the existing private-root compatibility addition.
+
 This is a private extension runtime, not an official Node binary. It never
 replaces system Node. The build checks the pinned source SHA-256 and produces
 `runtime.json`, node.exe, npm.tar, npm/npx shims and the full upstream LICENSE.

@@ -6,6 +6,21 @@ const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 const { parseArguments, executeFile, resolveExtension, validateConfiguration, runtimeProbeScript, redactReport } = require('./diagnose-windows.cjs');
+const { validateTar } = require('./prepare-windows-npm.cjs');
+const { gzipSync } = require('node:zlib');
+
+test('security package extraction rejects links and truncated tar entries', () => {
+  const entry = (type, size = 0) => {
+    const header = Buffer.alloc(512);
+    header.write('package/index.js'); header[156] = type.charCodeAt(0);
+    header.write(size.toString(8), 124);
+    return gzipSync(header);
+  };
+  assert.doesNotThrow(() => validateTar(entry('0')));
+  for (const type of ['1', '2', '3', '4', '6']) assert.throws(() => validateTar(entry(type)), /link or unsupported/);
+  assert.throws(() => validateTar(entry('0', 1024)), /Invalid package archive length/);
+  assert.throws(() => validateTar(Buffer.from('not a gzip archive')));
+});
 
 test('CLI rejects missing, unknown, duplicate and unbounded timeout arguments', () => {
   for (const argv of [['--extension'], ['--unknown'], ['--keep', '--keep'], ['--timeout-ms', 'Infinity'], ['--timeout-ms', '-1'], ['--timeout-ms', '600001'], ['--timeout-ms', '10000.5']]) assert.throws(() => parseArguments(argv));

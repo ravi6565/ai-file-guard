@@ -6,7 +6,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { execFile as execFileCallback } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createServer, connect } from 'node:net';
-import { WindowsSandbox, windowsEnvironment, windowsSystemExecutable, formatWindowsVerificationFailure, validateWindowsRuntimeCache, WindowsRuntimeBuild, WINDOWS_PROBE_LAUNCH_TIMEOUT } from '../enforcement/windowsSandbox';
+import { WindowsSandbox, windowsEnvironment, windowsSystemExecutable, windowsRuntimeProbeScript, formatWindowsVerificationFailure, validateWindowsRuntimeCache, WindowsRuntimeBuild, WINDOWS_PROBE_LAUNCH_TIMEOUT } from '../enforcement/windowsSandbox';
 import { ManagedSandbox, SandboxLaunch } from '../enforcement/managedSandbox';
 import { LockManager } from '../core/lockManager';
 import { LocalManifestStore } from '../core/localManifestStore';
@@ -30,6 +30,12 @@ describe('Windows managed environment', () => {
 });
 
 describe('Windows verification diagnostics', () => {
+  it('executes the actual captured/ignored I/O success protocol on the host runtime', async () => {
+    const result = await execFile(process.execPath, ['-e', windowsRuntimeProbeScript()], { timeout: 15_000 });
+    assert.equal(result.stdout, 'RUNTIME_VERIFIED');
+    assert.match(result.stderr, /RUNTIME_STARTING_CHILD_IO/);
+    assert.doesNotMatch(result.stderr, /RUNTIME_CHILD_IO_FAILED/);
+  });
   const diagnostic = (stage: Parameters<typeof formatWindowsVerificationFailure>[0], error: unknown) => JSON.parse(formatWindowsVerificationFailure(stage, error).split('no unconfined fallback: ')[1]);
   it('identifies ACL preparation timeouts without claiming runtime child I/O started', () => {
     const error = Object.assign(new Error('Command timed out'), { killed: true, signal: 'SIGTERM', stdout: '', stderr: 'AI File Guard native: stage=create-profile; elapsed_ms=1\nAI File Guard native: stage=grant-readonly-trees; elapsed_ms=119999' });
@@ -163,10 +169,7 @@ native('Native Windows LPAC enforcement', function () {
   });
 
   it('starts its execution deadline after setup and terminates the complete timed-out job', async () => {
-    const nullPaths = ['NUL', String.raw`\\.\NUL`, String.raw`\\?\GLOBALROOT\Device\Null`];
-    const script = `const fs=require('fs'),cp=require('child_process');const nulls=[];
-      for(const name of ${JSON.stringify(nullPaths)})for(const flags of ['r','w','r+']){try{const fd=fs.openSync(name,flags);fs.closeSync(fd);nulls.push({name,flags,ok:true})}catch(e){nulls.push({name,flags,error:e.code})}}
-      const ignored=cp.spawnSync(process.execPath,['-e','0'],{stdio:'ignore',timeout:1000});process.stdout.write('NULL_DEVICE_DIAGNOSTIC:'+JSON.stringify({nulls,ignored:{status:ignored.status,error:ignored.error&&ignored.error.code}})+'\\n');
+    const script = `const fs=require('fs'),cp=require('child_process');
       const child=cp.spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'pipe'});child.stdin.end();child.stdout.resume();child.stderr.resume();fs.writeFileSync('descendant.pid',String(child.pid));process.stdout.write('TIMEOUT_CHILD_STARTED');setInterval(()=>{},1000);`;
     const launch = await runtime.prepareCommand(staged, original, path.join(nodeRuntime, 'node.exe'), ['-e', script], nodeRuntime);
     const config = JSON.parse(await fs.readFile(launch.profilePath, 'utf8'));
@@ -174,7 +177,6 @@ native('Native Windows LPAC enforcement', function () {
     await fs.writeFile(launch.profilePath, JSON.stringify(config));
     await assert.rejects(execFile(launch.executable, launch.arguments, { cwd: launch.cwd, env: launch.environment, timeout: WINDOWS_PROBE_LAUNCH_TIMEOUT }), error => {
       const failure = error as Error & { code: number; killed: boolean; stdout: string; stderr: string };
-      console.log(failure.stdout.split('\n').find(line => line.startsWith('NULL_DEVICE_DIAGNOSTIC:')));
       assert.equal(failure.code, 125, failure.message);
       assert.equal(failure.killed, false, 'The native child limit must run before the host setup deadline.');
       assert.match(failure.stdout, /TIMEOUT_CHILD_STARTED/);
@@ -195,11 +197,14 @@ native('Native Windows LPAC enforcement', function () {
   });
 
   it('supports ignored child streams without requiring global null-device permission changes', async () => {
-    const grandchild = `const fs=require('fs');if(fs.readFileSync(0).length!==0)process.exit(94);process.stdout.write('discarded');process.stderr.write('discarded');`;
+    const originalFile = path.join(original, 'ignored-stream-original.txt');
+    await fs.writeFile(originalFile, 'original');
+    const grandchild = `const fs=require('fs');if(fs.readFileSync(0).length!==0)process.exit(94);try{fs.writeFileSync(${JSON.stringify(originalFile)},'bad');process.exit(95)}catch(error){if(!['EPERM','EACCES','ENOENT'].includes(error.code))throw error}process.stdout.write('discarded');process.stderr.write('discarded');`;
     const childScript = `const cp=require('child_process');const child=cp.spawnSync(process.execPath,['-e',${JSON.stringify(grandchild)}],{stdio:'ignore',timeout:5000});if(child.error||child.status!==0)throw Error('Ignored descendant streams failed:'+JSON.stringify({status:child.status,error:child.error&&child.error.code}));`;
     const result = await run(`const cp=require('child_process');const child=cp.spawnSync(process.execPath,['-e',${JSON.stringify(childScript)}],{stdio:'ignore',timeout:10000});
       if(child.error||child.status!==0)throw Error('Ignored stdio is unavailable inside LPAC:'+JSON.stringify({status:child.status,error:child.error&&child.error.code,signal:child.signal}));process.stdout.write('IGNORED_STDIO_VERIFIED');`);
     assert.equal(result.stdout, 'IGNORED_STDIO_VERIFIED');
+    assert.equal(await fs.readFile(originalFile, 'utf8'), 'original');
   });
 
   it('refuses staged junctions and hard-link aliases without modifying original access', async () => {

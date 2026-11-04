@@ -38,8 +38,8 @@ the Lock command, and the actual protected terminal.
 - Trusted probe configurations can bound child execution separately from setup;
   normal interactive terminals retain their unlimited lifetime.
 - Verification allows up to 120 seconds per launcher invocation for setup, with
-  separate native child limits of 5 seconds for the denial probe and 10 seconds
-  for runtime I/O. Errors identify the verification stage, last launcher stage,
+  separate native child limits of 5 seconds for the denial probe and 20 seconds
+  for captured/ignored runtime I/O. Errors identify the verification stage, last launcher stage,
   startup evidence, timeout/exit status and bounded captured output.
 - Failed verification retries on the next request while concurrent callers share
   an active check. Successful checks remain cached. Runtime reuse checks cached
@@ -90,28 +90,24 @@ Interpret the final native stage together with stdout:
 - `RUNTIME_VERIFIED` and preserved originals: that independent run passed;
   examine the baseline result separately.
 
-## Validation and release gate
+## Validation and release gate — updated 4 November 2026
 
-Local validation of the final working tree: `npm test` passes 67 portable tests
-with 16 platform-gated tests pending; `npm run lint` passes; the standalone
-diagnostic suite passes all 11 tests. The revised patch applies to the exact
-pinned Node source and a portable C harness passes six injected token/pipe
-error scenarios. VSCE's file list includes the diagnostic runner and excludes
-its tests/build scripts. Windows packaging rejects the old runtime provenance,
-as expected after changing the patch; no replacement Windows VSIX was produced.
+Local checks now pass 68 portable unit tests, 12 standalone diagnostic tests,
+TypeScript lint and all 17 macOS native tests. The outer Codex sandbox initially
+blocked nested sandbox/socket tests; rerunning the native suite outside it passed.
 
-Native macOS regression execution was blocked by the managed tool sandbox
-(`sandbox_apply: Operation not permitted` and denied local sockets). No native
-Windows execution was performed on this Mac. PowerShell and the Windows C#
-compiler are unavailable here.
+CI run 41693923880 at commit d66fe808600d7b53268e94534a9ef34e74f1ac1f
+passed all eight OS/Node jobs. Windows 2022 and 2025 passed native denial,
+ignored child/grandchild streams, timeout cleanup, cold/warm diagnostics,
+non-administrator execution, CLI startup, VS Code integration and installed VSIX
+acceptance. Both macOS Node jobs and both Linux jobs passed.
 
-Portable tests and pinned-source patch application can run on macOS. They do
-not compile the Windows launcher or validate LPAC behavior. Rebuild the private
-runtime, run unit/native/installed-VSIX checks on Windows, and repeat this
-diagnostic on the affected build before declaring the incident resolved. Include
-process cleanup after timeouts, cold/warm starts, spaces and long paths, manual
-edits, locked-file and recursive-folder denial, and broker apply after unlock.
+The final production captured/ignored verification, stronger grandchild
+original-denial assertion and pinned npm security updates still require a fresh
+complete CI run. No native Windows execution is counted from this Mac. Repeat
+the diagnostic and lock/unlock/provider workflow on the affected build 26300
+before declaring that device's incident resolved.
 
-Do not publish a replacement under the already released 0.12.2 version. Prepare
-a new version only after the changed Windows payload passes acceptance. Keep
-verification fail-closed; removing the runtime test would conceal this failure.
+Do not publish a replacement under the already released 0.12.2 version. Publish
+the exact new tested candidate bytes only after device acceptance. Keep
+verification fail-closed; removing runtime checks would conceal failures.

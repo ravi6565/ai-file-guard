@@ -28,6 +28,8 @@ async function main() {
     const bundle = path.join(root, 'resources', 'windows', 'runtime');
     const runtime = JSON.parse(await fs.readFile(path.join(bundle, 'runtime.json'), 'utf8').catch(() => { throw new Error('Missing Windows runtime. Download the windows-lpac-runtime CI artifact into resources/windows/runtime before packaging.'); }));
     if (runtime.architecture !== 'x64' || runtime.version !== '24.22.1' || runtime.sourceSha256 !== '001773d9bd53fbd27a25efd42aa6a9693ebfe500998ca9bec635e9b6ee79bc91' || runtime.patchSha256 !== hash(await fs.readFile(path.join(root, 'resources', 'windows', 'libuv-appcontainer.patch')))) throw new Error('Windows runtime provenance does not match the pinned build.');
+    const securityPlan = await fs.readFile(path.join(root, 'resources', 'windows', 'npm-security-updates.json'));
+    if (runtime.npmSecurityUpdatesSha256 !== hash(securityPlan) || runtime.npmVersion !== JSON.parse(securityPlan).npmVersion) throw new Error('Windows runtime is missing its pinned npm security updates. Run scripts/prepare-windows-npm.cjs after building the runtime.');
     for (const [file, expected] of [['node.exe', runtime.nodeSha256], ['npm.tar', runtime.npmSha256]]) if (hash(await fs.readFile(path.join(bundle, file))) !== expected) throw new Error(`Windows runtime checksum mismatch: ${file}`);
     for (const file of ['LICENSE', 'npm.cmd', 'npx.cmd']) await fs.access(path.join(bundle, file));
     await fs.access(path.join(bundle, '..', 'npm-private-roots.cjs'));

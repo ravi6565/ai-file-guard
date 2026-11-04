@@ -23,6 +23,9 @@ property and validates publisher identity and Windows runtime provenance.
 macOS packages exclude Windows resources. Windows x64 requires the compatible
 private runtime from the `windows-lpac-runtime` CI artifact, extracted into
 `resources/windows/runtime/`; see `resources/windows/RUNTIME.md` for source builds.
+Source builds must then run `node scripts/prepare-windows-npm.cjs` to apply the
+pinned npm dependency fixes and generate its advisory report. Packaging rejects
+an unprepared runtime; CI supplies the prepared artifact.
 There is no Docker/WSL dependency or stock Node fallback.
 
 CI uploads each package only after its installed-VSIX tests pass. Release targets

@@ -207,7 +207,7 @@ async function diagnose(options, onStage = () => undefined) {
     const manifestBytes = await fs.readFile(path.join(bundle, 'runtime.json'));
     const manifest = JSON.parse(manifestBytes.toString('utf8').replace(/^\uFEFF/, ''));
     report.runtime = { manifestSha256: hash(manifestBytes), launcherSourceSha256: hash(await fs.readFile(path.join(bundle, '..', 'GuardLauncher.cs'))) };
-    for (const name of ['version', 'architecture', 'nodeSha256', 'npmSha256', 'sourceSha256', 'patchSha256']) report.runtime[name] = manifest[name];
+    for (const name of ['version', 'architecture', 'nodeSha256', 'npmSha256', 'sourceSha256', 'patchSha256', 'npmVersion', 'npmSecurityUpdatesSha256']) report.runtime[name] = manifest[name];
     const { WindowsSandbox } = require(path.join(extension.directory, 'dist', 'enforcement', 'windowsSandbox.js'));
     const sandbox = new WindowsSandbox(control);
     await stage('extension-verification', async () => {

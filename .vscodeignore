@@ -6,6 +6,7 @@ scripts/**
 artifacts/
 windows-diagnostics.json
 windows-standard-user.json
+windows-npm-audit.json
 resources/windows/libuv-appcontainer.patch
 test/
 tsconfig.json
