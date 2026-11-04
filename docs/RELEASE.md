@@ -1,19 +1,38 @@
-# Release status
+# Release status — 0.12.3
 
-0.11.0 targets a native Windows/macOS preview for publisher `ravikiranv`, not a universal-security certification. Public support/security contact: ravikiranv8919@gmail.com. Windows native, real-terminal and installed-VSIX tests now pass on hosted CI, including confined Codex 0.164.0 installation/version startup. Local signed-in provider acceptance remains required before publication. Marketplace upload is performed manually after package validation and user acceptance.
+**Automated acceptance passed:** [CI run 41848429599](https://github.com/ravi6565/ai-file-guard/actions/runs/41848429599), source commit `81a4a8e6ceadf8fe34c049256ef82c1f6087c079`, passed all eight OS/Node jobs and runtime preparation on 4 November 2026. This includes both Windows versions, non-administrator execution, ignored child/grandchild streams, final npm security updates, native checks and installed VSIX acceptance. Publication remains subject to the affected-PC/provider workflow test.
 
-Build with `npm run package:preview`. The platform-specific VSIX, SHA-256 and metadata sidecars go to `artifacts/`. Follow `DEPLOYMENT.md` for the local-acceptance and manual-upload handoff. Windows x64 packaging requires the private runtime artifact built by CI (or scripts/build-windows-runtime.ps1); packaging without it cannot provide a working Windows protected terminal. Include its upstream LICENSE and runtime.json hashes. A host-specific candidate can be built using `npm run package:preview -- --target darwin-arm64` or `--target win32-x64`. Packages must contain the new publisher ID, Preview flag, pre-release property and current privacy/security documentation. Run `npm run test:vsix -- <candidate.vsix>` on the corresponding host before uploading. The previous local build uses a different extension ID; disable it first. Local policy imports once from its storage in the same profile, but sessions, credentials and old permission records do not migrate. No Docker or WSL dependency is permitted for this release.
+AI File Guard 0.12.3 is a release candidate under publisher `ravikiranv`.
+It corrects Windows verification, runtime pipe handling, failure recovery and
+diagnostics. This is a changed native payload, so earlier release passes do not
+qualify it. Require native and installed-VSIX checks, standard-user Windows
+acceptance and a successful retest on the reported build-26300 PC before upload.
+Public support/security contact: ravikiranv8919@gmail.com.
 
-Local gates include type checks, unit/service regressions, native OS-denial tests, actual VS Code protected-terminal verification, directory operations, repeated apply/concurrency checks, outbound DNS/HTTPS, and isolated Codex CLI installation/version smoke testing. Model sign-in and real provider tasks require user account acceptance.
+Build with `npm run package:release`. Targeted VSIX, SHA-256 and metadata sidecars
+go to `artifacts/`. Follow `DEPLOYMENT.md` for acceptance and upload. Windows x64
+requires the compatible private runtime built by CI, including its upstream
+LICENSE and provenance hashes. macOS Apple Silicon packages exclude Windows
+resources. No Docker/WSL dependency is required.
 
-Before production publication:
+## Release qualification
 
-- Validate the packaged VSIX in the user's installed profile and all supported provider workflows.
-- Resolve sandbox-exec deprecation/long-term OS support and obtain an independent security review.
-- Pass the Windows native and installed-package gates before advertising Windows enforcement; Linux has no backend.
-- Add safe stale-lease recovery, grouped rename behavior and stronger batch/failure semantics.
-- Test OS updates, Unicode/case aliases, inherited handles, external-service bypass and malicious host-process races.
-- Keep publisher, repository and support/security-contact metadata current. The publisher ID/contact were supplied by the developer; Marketplace account ownership/validation is performed by the portal.
-- Keep the managed-agent scope explicit in Marketplace descriptions. Never claim arbitrary external AI sessions are restricted.
+- Keep the publisher ID, version 0.12.3, target and stable channel consistent in both platform packages.
+- Run type checks, unit/service regressions, native OS-denial tests, actual protected-terminal checks and installed-package acceptance on each supported host.
+- Verify lock/unlock, recursive folder policy, dynamic instructions, manual editing, preview/apply and persistence.
+- Publish the exact tested VSIX files and check Marketplace validation. Do not upload the old preview packages.
+- Disable the earlier local publisher extension before upgrading; verify imported locks before removing its data. Credentials, sessions and old permission records do not migrate.
+- Retain the CI run, exact source commit, runtime provenance and installed-package checksums. See `WINDOWS-TEST-0.12.3.md` for the affected-PC test.
 
-A configured CI matrix is not proof that those external platforms or provider tasks passed.
+## Continuing support and security work
+
+Enforcement covers Protected AI Terminal processes and the trusted apply service.
+Ordinary external AI extensions remain unrestricted; instruction files are
+cooperative. Account/model workflows depend on the chosen provider; automated
+smoke tests establish installation/startup, not signed-in model execution.
+
+Independent security review, long-term replacement of deprecated macOS
+sandbox-exec, safe stale-lease recovery, grouped rename semantics and broader
+provider/OS compatibility remain open. Current limitations are documented in
+SECURITY.md and the local test guide. The stable release channel does not certify
+universal interception or remove these limitations. Linux enforcement is unsupported.

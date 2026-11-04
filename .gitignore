@@ -2,6 +2,9 @@
 node_modules/
 dist/
 artifacts/
+windows-diagnostics.json
+windows-standard-user.json
+windows-npm-audit.json
 resources/windows/runtime/
 out/
 coverage/

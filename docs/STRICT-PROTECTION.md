@@ -1,4 +1,4 @@
-# Strict protection scope — 0.11 candidate
+# Strict protection scope — 0.12 release
 
 The requested separation is implemented for the controlled execution path: the human editor retains original-file write access; agents launched in Protected AI Terminal must have OS-denied direct writes to originals; the trusted apply service rejects locked-file and locked-folder changes. macOS is verified locally. The native Windows LPAC backend passes Windows CI token, mutation, terminal and installed-VSIX acceptance; signed-in provider workflows still require local acceptance. Docker and WSL are not used.
 

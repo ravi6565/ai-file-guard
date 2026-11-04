@@ -1,72 +1,156 @@
 {
   "name": "ai-file-guard",
   "displayName": "AI File Guard",
-  "description": "Preview: native protected AI terminals, local file/folder locks, and synchronized agent instructions.",
-  "version": "0.11.0",
+  "description": "Native protected AI terminals, local file/folder locks, and synchronized agent instructions.",
+  "version": "0.12.3",
   "publisher": "ravikiranv",
-  "preview": true,
+  "preview": false,
   "author": {
     "name": "ravikiranv",
     "email": "ravikiranv8919@gmail.com"
   },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/ravi6565/ai-file-guard.git"
-  },
-  "homepage": "https://marketplace.visualstudio.com/items?itemName=ravikiranv.ai-file-guard",
-  "bugs": {
-    "email": "ravikiranv8919@gmail.com"
-  },
+  "homepage": "https://github.com/ravi6565",
   "license": "MIT",
-  "extensionKind": ["workspace"],
+  "extensionKind": [
+    "workspace"
+  ],
   "capabilities": {
-    "virtualWorkspaces": { "supported": false, "description": "Requires canonical local filesystem paths." },
-    "untrustedWorkspaces": { "supported": false }
+    "virtualWorkspaces": {
+      "supported": false,
+      "description": "Requires canonical local filesystem paths."
+    },
+    "untrustedWorkspaces": {
+      "supported": false
+    }
   },
-  "engines": { "vscode": "^1.95.0" },
-  "categories": ["Other"],
-  "keywords": ["ai", "security", "codex", "copilot", "file protection"],
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "ai",
+    "security",
+    "codex",
+    "copilot",
+    "file protection"
+  ],
   "icon": "resources/icon.png",
-  "activationEvents": ["onStartupFinished"],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
-      { "command": "aiFileGuard.lock", "title": "Lock for AI", "icon": "$(lock)" },
-      { "command": "aiFileGuard.startManagedAgent", "title": "AI File Guard: Open Protected AI Terminal", "icon": "$(shield)" },
-      { "command": "aiFileGuard.verifySandbox", "title": "AI File Guard: Verify Managed Sandbox" },
-      { "command": "aiFileGuard.previewAgentChanges", "title": "AI File Guard: Preview Agent Changes" },
-      { "command": "aiFileGuard.addReviewPolicy", "title": "AI File Guard: Add Review Broker Policy (Does Not Block AI)" },
-      { "command": "aiFileGuard.unlock", "title": "Unlock for AI", "icon": "$(unlock)" },
-      { "command": "aiFileGuard.refresh", "title": "Refresh Managed AI Locks", "icon": "$(refresh)" },
-      { "command": "aiFileGuard.showStatus", "title": "AI File Guard: Show Status" },
-      { "command": "aiFileGuard.syncInstructions", "title": "AI File Guard: Sync AI Instructions" },
-      { "command": "aiFileGuard.openLocalPolicy", "title": "AI File Guard: Open Local Lock Policy" },
-      { "command": "aiFileGuard.createReviewWorkspace", "title": "AI File Guard: Create Brokered Agent Workspace" },
-      { "command": "aiFileGuard.applyReviewWorkspace", "title": "AI File Guard: Review and Apply Agent Changes" },
-      { "command": "aiFileGuard.openAuditLog", "title": "AI File Guard: Open Audit Log" },
-      { "command": "aiFileGuard.repairHardLocks", "title": "AI File Guard: Restore Legacy File Permissions" }
+      {
+        "command": "aiFileGuard.lock",
+        "title": "Lock for AI",
+        "icon": "$(lock)"
+      },
+      {
+        "command": "aiFileGuard.startManagedAgent",
+        "title": "AI File Guard: Open Protected AI Terminal",
+        "icon": "$(shield)"
+      },
+      {
+        "command": "aiFileGuard.verifySandbox",
+        "title": "AI File Guard: Verify Managed Sandbox"
+      },
+      {
+        "command": "aiFileGuard.previewAgentChanges",
+        "title": "AI File Guard: Preview Agent Changes"
+      },
+      {
+        "command": "aiFileGuard.addReviewPolicy",
+        "title": "AI File Guard: Add Review Broker Policy (Does Not Block AI)"
+      },
+      {
+        "command": "aiFileGuard.unlock",
+        "title": "Unlock for AI",
+        "icon": "$(unlock)"
+      },
+      {
+        "command": "aiFileGuard.refresh",
+        "title": "Refresh Managed AI Locks",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "aiFileGuard.showStatus",
+        "title": "AI File Guard: Show Status"
+      },
+      {
+        "command": "aiFileGuard.syncInstructions",
+        "title": "AI File Guard: Sync AI Instructions"
+      },
+      {
+        "command": "aiFileGuard.openLocalPolicy",
+        "title": "AI File Guard: Open Local Lock Policy"
+      },
+      {
+        "command": "aiFileGuard.createReviewWorkspace",
+        "title": "AI File Guard: Create Brokered Agent Workspace"
+      },
+      {
+        "command": "aiFileGuard.applyReviewWorkspace",
+        "title": "AI File Guard: Review and Apply Agent Changes"
+      },
+      {
+        "command": "aiFileGuard.openAuditLog",
+        "title": "AI File Guard: Open Audit Log"
+      },
+      {
+        "command": "aiFileGuard.repairHardLocks",
+        "title": "AI File Guard: Restore Legacy File Permissions"
+      }
     ],
     "menus": {
       "explorer/context": [
-        { "command": "aiFileGuard.lock", "when": "resourceScheme == file", "group": "aiFileGuard@1" },
-        { "command": "aiFileGuard.unlock", "when": "resourceScheme == file", "group": "aiFileGuard@2" }
+        {
+          "command": "aiFileGuard.lock",
+          "when": "resourceScheme == file",
+          "group": "aiFileGuard@1"
+        },
+        {
+          "command": "aiFileGuard.unlock",
+          "when": "resourceScheme == file",
+          "group": "aiFileGuard@2"
+        }
       ],
       "view/item/context": [
-        { "command": "aiFileGuard.unlock", "when": "view == aiFileGuard.protectedFiles && viewItem == savedReviewPolicy", "group": "inline" }
+        {
+          "command": "aiFileGuard.unlock",
+          "when": "view == aiFileGuard.protectedFiles && viewItem == savedReviewPolicy",
+          "group": "inline"
+        }
       ]
     },
     "viewsContainers": {
-      "activitybar": [{ "id": "aiFileGuard", "title": "AI File Guard", "icon": "media/shield.svg" }]
+      "activitybar": [
+        {
+          "id": "aiFileGuard",
+          "title": "AI File Guard",
+          "icon": "media/shield.svg"
+        }
+      ]
     },
     "views": {
-      "aiFileGuard": [{ "id": "aiFileGuard.protectedFiles", "name": "Managed AI Locks" }]
+      "aiFileGuard": [
+        {
+          "id": "aiFileGuard.protectedFiles",
+          "name": "Managed AI Locks"
+        }
+      ]
     },
     "configuration": {
       "title": "AI File Guard",
       "properties": {
         "aiFileGuard.protectionMode": {
           "type": "string",
-          "enum": ["review", "enforced"],
+          "enum": [
+            "review",
+            "enforced"
+          ],
           "enumDescriptions": [
             "Manual edits allowed. The review broker rejects changes to locked paths. External AI sessions are not confined.",
             "Verify the OS sandbox before accepting a managed-agent lock. AI tools must run through the Protected AI Terminal."
@@ -77,8 +161,21 @@
         },
         "aiFileGuard.adapters": {
           "type": "array",
-          "items": { "type": "string", "enum": ["codex", "copilot", "claude", "generic"] },
-          "default": ["codex", "copilot", "claude", "generic"],
+          "items": {
+            "type": "string",
+            "enum": [
+              "codex",
+              "copilot",
+              "claude",
+              "generic"
+            ]
+          },
+          "default": [
+            "codex",
+            "copilot",
+            "claude",
+            "generic"
+          ],
           "uniqueItems": true,
           "scope": "machine",
           "description": "Automatically synchronize managed sections in AGENTS.md, .github/copilot-instructions.md, CLAUDE.md, and .ai-file-guard/INSTRUCTIONS.md on lock/unlock and reload. Existing project instructions are preserved. These repository files can be committed; instructions are cooperative and do not enforce a sandbox."
@@ -102,12 +199,18 @@
     "test:vsix": "npm run compile && node dist/test/runIntegration.js --vsix",
     "test:sandbox": "npm run compile && node dist/test/runNative.js",
     "lint": "tsc -p . --noEmit",
-    "package": "vsce package --pre-release",
-    "package:preview": "node scripts/package-preview.cjs"
+    "package": "vsce package --allow-missing-repository",
+    "package:release": "node scripts/package-release.cjs"
   },
   "overrides": {
-    "@vscode/vsce": { "@azure/identity": "4.13.0", "uuid": "^11.1.1" },
-    "mocha": { "diff": "^8.0.3", "serialize-javascript": "^7.1.4" }
+    "@vscode/vsce": {
+      "@azure/identity": "4.13.0",
+      "uuid": "^11.1.1"
+    },
+    "mocha": {
+      "diff": "^8.0.3",
+      "serialize-javascript": "^7.1.4"
+    }
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
@@ -115,7 +218,6 @@
     "@types/vscode": "^1.95.0",
     "@vscode/test-electron": "^3.1.0",
     "@vscode/vsce": "^3.2.1",
-    "eslint": "^9.17.0",
     "mocha": "^11.0.1",
     "source-map-support": "^0.5.21",
     "typescript": "^5.7.2"

@@ -1,5 +1,16 @@
 name: CI
-on: [push, pull_request]
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   windows-runtime:
     runs-on: windows-latest
@@ -13,23 +24,83 @@ jobs:
         id: runtime
         with:
           path: resources/windows/runtime
-          key: windows-lpac-node-24.22.1-x64-${{ hashFiles('scripts/build-windows-runtime.ps1', 'resources/windows/libuv-appcontainer.patch') }}
+          key: windows-lpac-node-24.22.1-x64-${{ hashFiles('scripts/build-windows-runtime.ps1', 'resources/windows/libuv-appcontainer.patch') }}-${{ hashFiles('resources/windows/npm-security-updates.json', 'scripts/prepare-windows-npm.cjs') }}
+      - name: Restore qualified runtime for the unchanged native build recipe
+        id: qualified-runtime
+        if: steps.runtime.outputs.cache-hit != 'true' && hashFiles('scripts/build-windows-runtime.ps1', 'resources/windows/libuv-appcontainer.patch') == '01e69308c9bca3dfe82c47497f6d9d8bbc7257ac3b176597a33fea97acf4c3bf'
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-lpac-runtime
+          path: resources/windows/runtime
+          run-id: 41848429599
+          github-token: ${{ github.token }}
+      - name: Verify qualified runtime before reuse
+        id: qualified-check
+        if: steps.qualified-runtime.outcome == 'success'
+        shell: python
+        run: |
+          import hashlib, json, os, pathlib
+          root = pathlib.Path('resources/windows')
+          runtime = root / 'runtime'
+          digest = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+          verified = False
+          try:
+              manifest = json.loads((runtime / 'runtime.json').read_text())
+              verified = (
+                  manifest['architecture'] == 'x64'
+                  and manifest['version'] == '24.22.1'
+                  and manifest['sourceSha256'] == '001773d9bd53fbd27a25efd42aa6a9693ebfe500998ca9bec635e9b6ee79bc91'
+                  and manifest['patchSha256'] == digest(root / 'libuv-appcontainer.patch')
+                  and manifest['npmSecurityUpdatesSha256'] == digest(root / 'npm-security-updates.json')
+                  and manifest['nodeSha256'] == digest(runtime / 'node.exe') == 'aaf5964345d35c5cd7f014e87c2ef3348c5ae35e33e72e09e34cb237e7626ee4'
+                  and manifest['npmSha256'] == digest(runtime / 'npm.tar') == '89bcf7c8e269df416516969ae9f991b5a21d4562b80f444604671cdaedaca1e0'
+              )
+          except (OSError, ValueError, KeyError) as error:
+              print(f'Qualified runtime unavailable; compile from source: {error}')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'verified={str(verified).lower()}\n')
       - name: Build private runtime with upstream AppContainer pipe fix
-        if: steps.runtime.outputs.cache-hit != 'true'
+        if: steps.runtime.outputs.cache-hit != 'true' && steps.qualified-check.outputs.verified != 'true'
         shell: pwsh
         run: ./scripts/build-windows-runtime.ps1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Prepare and audit pinned private npm security updates
+        run: node scripts/prepare-windows-npm.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-npm-audit
+          path: windows-npm-audit.json
+          if-no-files-found: warn
       - uses: actions/upload-artifact@v4
         with:
           name: windows-lpac-runtime
           path: resources/windows/runtime
           if-no-files-found: error
+  gate:
+    name: CI gate
+    if: always()
+    needs: [windows-runtime, test]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every runtime and test job to pass
+        env:
+          RUNTIME_RESULT: ${{ needs.windows-runtime.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+        run: |
+          test "$RUNTIME_RESULT" = success
+          test "$TEST_RESULT" = success
   test:
     needs: windows-runtime
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-24.04, macos-15-intel, windows-2022, windows-2025]
         node: [22, 24]
     runs-on: ${{ matrix.os }}
     steps:
@@ -47,6 +118,26 @@ jobs:
       - run: npm audit --audit-level=high
       - run: npm run lint
       - run: npm test
+      - run: node --test scripts/test-windows-diagnostics.cjs
+      - name: Windows cold/warm startup and child-pipe diagnostics
+        if: runner.os == 'Windows' && matrix.node == 22
+        run: node scripts/diagnose-windows.cjs --extension . --output windows-diagnostics.json
+      - uses: actions/upload-artifact@v4
+        if: always() && runner.os == 'Windows' && matrix.node == 22
+        with:
+          name: windows-diagnostics-${{ matrix.os }}
+          path: windows-diagnostics.json
+          if-no-files-found: warn
+      - name: Windows acceptance without administrator privileges
+        if: runner.os == 'Windows' && matrix.node == 22
+        shell: pwsh
+        run: ./scripts/test-windows-standard-user.ps1
+      - uses: actions/upload-artifact@v4
+        if: always() && runner.os == 'Windows' && matrix.node == 22
+        with:
+          name: windows-standard-user-${{ matrix.os }}
+          path: windows-standard-user.json
+          if-no-files-found: warn
       - run: npm run test:sandbox
         if: runner.os == 'macOS' || runner.os == 'Windows'
       - name: Confined Windows CLI installation/version smoke (no sign-in or model call)
@@ -55,13 +146,45 @@ jobs:
         env:
           AI_FILE_GUARD_CLI_SMOKE: '1'
       - run: xvfb-run -a npm run test:integration
+        timeout-minutes: 5
         if: runner.os == 'Linux'
       - run: npm run test:integration
+        timeout-minutes: 5
         if: runner.os != 'Linux'
       - run: npm run package
-      - run: npm run package:preview -- --out candidate.vsix
+      - run: npm run package:release -- --out candidate.vsix
         if: runner.os != 'Linux'
+      - name: Verify stable channel and package identity
+        if: runner.os != 'Linux'
+        shell: python
+        run: |
+          import hashlib, json, pathlib, xml.etree.ElementTree as ET, zipfile
+          package = pathlib.Path('candidate.vsix')
+          metadata = json.loads(pathlib.Path('candidate.vsix.json').read_text())
+          expected = json.loads(pathlib.Path('package.json').read_text())
+          assert metadata['preRelease'] is False
+          assert hashlib.sha256(package.read_bytes()).hexdigest() == metadata['sha256']
+          with zipfile.ZipFile(package) as archive:
+              manifest = json.loads(archive.read('extension/package.json'))
+              assert manifest['preview'] is False
+              assert manifest['version'] == expected['version']
+              assert manifest['homepage'] == expected['homepage'] == 'https://github.com/ravi6565'
+              assert 'bugs' not in manifest and 'repository' not in manifest
+              assert manifest['publisher'] == 'ravikiranv'
+              assert manifest['name'] == 'ai-file-guard'
+              xml = ET.fromstring(archive.read('extension.vsixmanifest'))
+              ns = {'v': 'http://schemas.microsoft.com/developer/vsx-schema/2011'}
+              identity = xml.find('v:Metadata/v:Identity', ns)
+              assert identity.attrib['Version'] == expected['version']
+              assert identity.attrib['TargetPlatform'] == metadata['target']
+              assert 'Preview' not in xml.findtext('v:Metadata/v:GalleryFlags', '', ns)
+              properties = {p.attrib['Id']: p.attrib.get('Value') for p in xml.findall('.//v:Property', ns)}
+              assert properties.get('Microsoft.VisualStudio.Code.PreRelease', 'false') == 'false'
+              links = {key: value for key, value in properties.items() if key.startswith('Microsoft.VisualStudio.Services.Links.')}
+              assert links == {'Microsoft.VisualStudio.Services.Links.Learn': expected['homepage']}, links
+          print('Stable channel, identity, target and checksum verified.')
       - run: npm run test:vsix -- candidate.vsix
+        timeout-minutes: 5
         if: runner.os != 'Linux'
       - uses: actions/upload-artifact@v4
         if: runner.os != 'Linux'

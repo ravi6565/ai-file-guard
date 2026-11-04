@@ -1,5 +1,45 @@
 # Changelog
 
+## Unreleased
+
+- Consolidate current documentation under README.md and docs/README.md; preserve earlier validation records in docs/archive/.
+- Add contributor guidance, code ownership, a versioned PR-only main ruleset and an aggregate CI gate. Repository settings must be activated separately.
+- Limit the CI token to read-only contents/actions and remove unused ESLint development dependencies.
+- Pin Linux/macOS CI images, disable GPU acceleration in headless Linux tests and bound integration-step execution.
+
+## 0.12.3 — Windows verification test candidate
+
+- Separate slow Windows permission setup from bounded runtime execution and retain stage/timing diagnostics on verification errors.
+- Avoid rewriting matching private-runtime DACLs; retain path, link and token checks.
+- Retry failed verification without requiring a reload, and reject changed or incomplete private runtime caches on reuse.
+- Harden the private libuv AppContainer patch against token-query errors and unbounded pipe-name retries. A new private runtime build and native Windows acceptance are required.
+- Add a standalone Windows diagnostic report and explicit Windows Server 2022/2025 CI coverage. The reported client build 26300 still needs acceptance.
+- Support clean local runtime builds without a CI-only temporary-directory variable.
+- Correct cross-platform diagnostic tests and private-source README packaging; qualify Windows with a disposable non-administrator account.
+- Update the development-only qs dependency through the compatible npm security fix.
+- Pass private inherited null-device handles to managed Node so ignored child streams can work without changing system device permissions. Verify both captured and ignored I/O before accepting locks; qualify descendants and ordinary-user execution in native tests.
+- Pin compatible security updates inside the bundled npm archive, audit its actual dependency versions, and block Windows runtime artifacts on high/critical advisory findings.
+
+## 0.12.2 — Marketplace resource-link correction
+
+- Remove the optional Issues resource generated from bugs.email; Marketplace rejected its mailto URL. Keep public support and security contact details in the README and author metadata.
+- Omit private-repository resource links to prevent VSCE from automatically generating an inaccessible issues URL. Keep the public developer profile as homepage.
+- Validate generated resource links and reject unintended Issues/private-source metadata before accepting a release package. Protection behavior is unchanged.
+
+## 0.12.1 — Marketplace homepage correction
+
+- Replace the self-referencing Marketplace homepage URL with the developer’s public GitHub profile. The source repository remains private.
+- Reject Marketplace listing URLs in release packaging and verify the packaged homepage matches the source manifest.
+- Retain the stable release channel and the previously validated protection behavior.
+
+## 0.12.0 — Windows/macOS stable release
+
+- Publish the validated managed-terminal workflow on the stable release channel; disable Preview metadata and pre-release packaging.
+- Provide separate Windows x64 and macOS Apple Silicon packages with checksums and runtime provenance validation.
+- Preserve dynamic file/folder lock instructions, manual editing, live-policy application and native OS confinement for Protected AI Terminal processes. Ordinary external AI chat extensions remain outside enforcement.
+- Include the Windows foreground-interruption fix: Ctrl+C stops the foreground command while the protected terminal remains usable.
+- The developer reports successful preview acceptance. New stable payloads require their own installed-package checks before upload.
+
 ## 0.11.0 — native Windows/macOS preview candidate
 
 - Set publisher identity to ravikiranv and add the developer's public support/security contact.

@@ -1,48 +1,150 @@
 diff --git a/src/win/pipe.c b/src/win/pipe.c
-index cd11859d347..6d26d6cec82 100644
 --- a/src/win/pipe.c
 +++ b/src/win/pipe.c
-@@ -106,8 +106,42 @@ static int includes_nul(const char *s, size_t n) {
+@@ -106,8 +106,41 @@
  }
- 
- 
+
+
+-static void uv__unique_pipe_name(unsigned long long ptr, char* name, size_t size) {
+-  snprintf(name, size, "\\\\?\\pipe\\uv\\%llu-%lu", ptr, GetCurrentProcessId());
 +static int uv_is_app_container_;
++static DWORD uv_app_container_error_;
 +static uv_once_t uv_is_app_container_guard_ = UV_ONCE_INIT;
 +
 +
-+/* Is this process running under Windows AppContainer? */
-+/* Detection algorithm from https://learn.microsoft.com/en-us/windows/win32/secauthz/appcontainer-for-legacy-applications- */
++/* Private runtime: query the current-token pseudo-handle instead of opening
++ * a token handle subject to its DACL. A failed query is not a negative result. */
 +static void uv__init__is_app_container(void) {
-+  HANDLE token;
 +  DWORD ac;
 +  DWORD len;
-+  int ok;
 +
-+  if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) {
-+    uv_is_app_container_ = 0;
-+    return;
-+  }
 +  ac = 0;
 +  len = sizeof(ac);
-+  ok = GetTokenInformation(token, TokenIsAppContainer, &ac, len, &len);
-+  CloseHandle(token);
-+  uv_is_app_container_ = ok && ac != 0;
++  if (!GetTokenInformation(GetCurrentProcessToken(),
++                           TokenIsAppContainer,
++                           &ac,
++                           len,
++                           &len)) {
++    uv_app_container_error_ = GetLastError();
++    return;
++  }
++  uv_is_app_container_ = ac != 0;
 +}
 +
 +
-+/* Is this process running under Windows AppContainer? */
-+/* Cached form for repeated use in the process. */
-+static int uv__is_appcontainer(void) {
++static int uv__unique_pipe_name(unsigned long long ptr, char* name, size_t size) {
 +  uv_once(&uv_is_app_container_guard_, uv__init__is_app_container);
-+  return uv_is_app_container_;
++  if (uv_app_container_error_ != ERROR_SUCCESS)
++    return uv_app_container_error_;
++
++  /* Upstream AppContainer fix: use its private LOCAL pipe namespace. */
++  snprintf(name, size, "\\\\?\\pipe\\%suv\\%llu-%lu",
++           uv_is_app_container_ ? "LOCAL\\" : "",
++           ptr, GetCurrentProcessId());
++  return 0;
+ }
+
+
+@@ -209,11 +242,14 @@
+ static int uv__pipe_server(
+     HANDLE* pipeHandle_ptr, DWORD access,
+     char* name, size_t nameSize, unsigned long long random) {
+-  HANDLE pipeHandle;
++  HANDLE pipeHandle = INVALID_HANDLE_VALUE;
++  unsigned int attempts = 0;
+   int err;
+
+   for (;;) {
+-    uv__unique_pipe_name(random, name, nameSize);
++    err = uv__unique_pipe_name(random, name, nameSize);
++    if (err)
++      goto error;
+
+     pipeHandle = CreateNamedPipeA(name,
+       access | FILE_FLAG_FIRST_PIPE_INSTANCE,
+@@ -229,6 +265,12 @@
+     if (err != ERROR_PIPE_BUSY && err != ERROR_ACCESS_DENIED) {
+       goto error;
+     }
++
++    /* Private runtime: access denied can be a sandbox policy denial, not
++     * a name collision. Keep collision retries finite and return the actual
++     * Windows error instead of spinning before child-process timers start. */
++    if (++attempts >= 128)
++      goto error;
+
+     /* Pipe name collision.  Increment the random number and try again. */
+     random++;
+diff --git a/src/win/process-stdio.c b/src/win/process-stdio.c
+--- a/src/win/process-stdio.c
++++ b/src/win/process-stdio.c
+@@ -141,6 +141,60 @@
+ }
+
+ 
++/* Private runtime: the trusted launcher provides only null-device handles.
++ * Reuse those after an AppContainer cannot reopen NUL; never change the global
++ * device DACL or substitute a writable host file. Descendants inherit the same
++ * harmless handles. Environment values cannot grant access to new objects. */
++static int uv__guard_nul_handle(HANDLE* handle_ptr,
++                                DWORD access,
++                                int original_error) {
++  DWORD app_container;
++  DWORD length;
++  DWORD count;
++  WCHAR value[32];
++  WCHAR* end;
++  const WCHAR* key;
++  unsigned long long number;
++  HANDLE source;
++  HANDLE duplicate;
++  unsigned int i;
++
++  app_container = 0;
++  length = sizeof(app_container);
++  if (!GetTokenInformation(GetCurrentProcessToken(),
++                           TokenIsAppContainer,
++                           &app_container,
++                           length,
++                           &length) || !app_container)
++    return original_error;
++
++  key = (access & FILE_WRITE_DATA) ? L"AI_FILE_GUARD_NULL_WRITE_HANDLE"
++                                   : L"AI_FILE_GUARD_NULL_READ_HANDLE";
++  count = GetEnvironmentVariableW(key, value, ARRAY_SIZE(value));
++  if (count == 0 || count >= ARRAY_SIZE(value))
++    return original_error;
++  for (i = 0; i < count; i++)
++    if (value[i] < L'0' || value[i] > L'9')
++      return original_error;
++  number = _wcstoui64(value, &end, 10);
++  if (*end != L'\0' || number == 0 || (unsigned long long) (uintptr_t) number != number)
++    return original_error;
++  source = (HANDLE) (uintptr_t) number;
++  if (source == INVALID_HANDLE_VALUE || GetFileType(source) != FILE_TYPE_CHAR)
++    return original_error;
++  if (!DuplicateHandle(GetCurrentProcess(),
++                       source,
++                       GetCurrentProcess(),
++                       &duplicate,
++                       access,
++                       TRUE,
++                       0))
++    return GetLastError();
++  *handle_ptr = duplicate;
++  return 0;
 +}
 +
 +
- static void uv__unique_pipe_name(unsigned long long ptr, char* name, size_t size) {
--  snprintf(name, size, "\\\\?\\pipe\\uv\\%llu-%lu", ptr, GetCurrentProcessId());
-+  snprintf(name, size, "\\\\?\\pipe\\%suv\\%llu-%lu",
-+           uv__is_appcontainer() ? "LOCAL\\" : "",
-+           ptr, GetCurrentProcessId());
- }
- 
- 
+ int uv__create_nul_handle(HANDLE* handle_ptr,
+     DWORD access) {
+   HANDLE handle;
+@@ -158,7 +212,7 @@
+                        0,
+                        NULL);
+   if (handle == INVALID_HANDLE_VALUE) {
+-    return GetLastError();
++    return uv__guard_nul_handle(handle_ptr, access, GetLastError());
+   }
+
+   *handle_ptr = handle;

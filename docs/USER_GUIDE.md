@@ -1,4 +1,4 @@
-# User guide — 0.11 Windows/macOS preview candidate
+# User guide — 0.12 Windows/macOS
 
 ## Lock and unlock
 

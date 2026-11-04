@@ -4,11 +4,46 @@ The Windows candidate needs a Node runtime with libuv's AppContainer pipe fix.
 Stock Node releases tested in CI hang while creating child-process pipes inside
 AppContainer (https://github.com/nodejs/node/issues/66374).
 
-`scripts/build-windows-runtime.ps1` builds pinned Node 24.22.1 source with only
-the `src/win/pipe.c` change from libuv commit
-`2cadaa40167050baf7c6905ac897e6fb57afb2c6`. The patch is MIT licensed; its
+`scripts/build-windows-runtime.ps1` builds pinned Node 24.22.1 source with
+the `src/win/pipe.c` fix from libuv commit
+`2cadaa40167050baf7c6905ac897e6fb57afb2c6` plus private error-handling changes.
+The patch is MIT licensed; its
 copyright and license are included in Node's bundled LICENSE. Upstream change:
 https://github.com/libuv/libuv/commit/2cadaa40167050baf7c6905ac897e6fb57afb2c6.
+
+The private additions query `TokenIsAppContainer` through the documented current
+process token pseudo-handle, propagate token-query errors instead of silently
+selecting the global pipe namespace, and bound pipe-name collision retries.
+An access-denied error must reach Node rather than spin forever inside pipe
+creation, before `spawnSync` can start its own timeout. These changes need native
+Windows qualification; they do not establish the cause of the build-26300 report.
+See [Microsoft's pseudo-handle contract](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getcurrentprocesstoken).
+
+The `src/win/process-stdio.c` addition supports Node's ignored streams when
+LPAC cannot reopen `NUL`. The trusted launcher opens two null-device handles
+with read/write rights and includes only those alongside stdin/out/err in the
+explicit inherited-handle list. The patched runtime validates the inherited
+character-device handle and duplicates it with the requested access. Descendant
+Node processes inherit the same harmless handles. No system device ACL is
+changed and no administrator rights are requested. Missing, malformed, invalid
+or insufficient handles fail with the original OS error; there is no host-file
+substitute. Native programs that reopen `NUL` themselves remain subject to the
+OS device policy and require separate provider-workflow acceptance.
+
+Both captured pipes and ignored Node child streams must pass the native runtime
+verification before a managed lock is accepted.
+
+The private npm archive retains npm 11.19.1 and applies compatible, checksum-pinned
+updates to undici, brace-expansion, postcss-selector-parser and ip-address.
+`npm-security-updates.json` records each source version, target and SHA-512.
+After a source runtime build, run `node scripts/prepare-windows-npm.cjs`; CI runs
+this step before uploading the final runtime. It checks replacement dependencies,
+rejects archive links/traversal, retains package licenses, and checks the actual
+bundled versions against the registry advisory API. High/critical findings block
+the artifact. Moderate findings remain visible in `windows-npm-audit.json`.
+Packaging requires the security-plan hash in runtime provenance. No package
+lifecycle scripts run during this derivation, and the base Arborist helper is
+unchanged before the existing private-root compatibility addition.
 
 This is a private extension runtime, not an official Node binary. It never
 replaces system Node. The build checks the pinned source SHA-256 and produces
@@ -24,8 +59,11 @@ Windows release packaging must include this directory and pass those gates.
 For a developer-only source build, use a Windows x64 host with PowerShell 7,
 Git, Python 3.12, NASM and the Visual Studio C++/ClangCL toolchain described in
 [Node's build prerequisites](https://github.com/nodejs/node/blob/v24.22.1/BUILDING.md#windows-prerequisites).
-Set `RUNNER_TEMP` to a temporary path without spaces before invoking the script
-outside CI. Building Node can take substantially longer than extension tests.
+The build uses a fresh temporary directory, with the system temporary directory
+as fallback when `RUNNER_TEMP` is absent. Use a short `RUNNER_TEMP` path if the
+Node toolchain rejects your local temporary path. Building Node can take
+substantially longer than extension tests. A bounded host child-pipe smoke runs
+before runtime provenance is written; LPAC acceptance remains a separate gate.
 These source-build tools are not requirements for users installing a complete,
 tested Windows VSIX; the runtime is already included in that package.
 
@@ -52,3 +90,24 @@ It avoids the npm CLI's JavaScript wrapper scanning inaccessible host ancestors;
 the installed Codex package is not rewritten. This adapter runs only as a child
 of the LPAC launcher, never in the unrestricted extension host. Its files also
 participate in the private-runtime cache key and provenance record.
+
+The native launcher reports setup/child stages to captured stderr, leaving probe
+stdout intact and interactive terminals quiet. It inspects every private object
+on each run, including reparse/hard-link checks, but only writes a DACL when the
+required package-SID grant is missing. `TimeoutMilliseconds` in a trusted probe
+configuration bounds child execution after resume; zero preserves the protected
+terminal's unlimited lifetime. An outer host deadline must still bound setup.
+
+Use [the Windows diagnostic procedure](../../docs/WINDOWS-REVIEW-2026-10-27.md)
+to distinguish permission setup, runtime startup and child I/O. Do not bypass
+the extension's verification or infer Windows client support from a server pass.
+
+## CI reuse of the qualified runtime
+
+CI can restore the artifact from accepted run 41848429599 when the native build
+recipe is unchanged. Before reuse it checks the exact Node/npm binary hashes,
+source version/hash, patch hash and security-plan hash. A missing, expired or
+mismatched artifact falls back to the source build. npm preparation and its
+advisory scan still run for every CI runtime job. Cache keys include the native
+recipe and npm security preparation inputs. Update the pinned artifact only after
+a new runtime has passed full native and installed-package acceptance.

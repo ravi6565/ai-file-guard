@@ -66,7 +66,7 @@ async function main(): Promise<void> {
         const metadata = JSON.parse(packageJson) as { publisher?: string; name?: string };
         if (metadata.publisher === 'ravikiranv' && metadata.name === 'ai-file-guard') installedPath = candidatePath;
       }
-      if (!installedPath) throw new Error('The installed preview extension could not be found in the isolated profile.');
+      if (!installedPath) throw new Error('The installed extension could not be found in the isolated profile.');
       developmentPath = installedPath;
     }
     await runTests({
@@ -74,7 +74,7 @@ async function main(): Promise<void> {
       vscodeExecutablePath,
       extensionDevelopmentPath: developmentPath,
       extensionTestsPath: path.resolve(__dirname, 'integration', 'index'),
-      launchArgs: [workspace, ...(vsixIndex >= 0 ? [] : ['--disable-extensions']), '--user-data-dir', path.join(testRoot, 'profile'), '--extensions-dir', path.join(testRoot, 'extensions'), '--skip-welcome', '--skip-release-notes'],
+      launchArgs: [workspace, ...(vsixIndex >= 0 ? [] : ['--disable-extensions']), ...(process.platform === 'linux' ? ['--disable-gpu'] : []), '--user-data-dir', path.join(testRoot, 'profile'), '--extensions-dir', path.join(testRoot, 'extensions'), '--skip-welcome', '--skip-release-notes'],
     });
   } catch (error) {
     console.error('VS Code integration tests failed', error);
