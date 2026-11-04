@@ -1,2 +1,4 @@
 # Keep the upstream source patch byte-identical on Windows checkout.
 *.patch text eol=lf
+# The runtime manifest binds the exact security-plan bytes on every host.
+resources/windows/npm-security-updates.json text eol=lf
