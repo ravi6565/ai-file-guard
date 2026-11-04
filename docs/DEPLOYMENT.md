@@ -3,7 +3,7 @@
 Publisher: **ravikiranv**. Extension ID: **ravikiranv.ai-file-guard**.
 Support/security contact: **ravikiranv8919@gmail.com**.
 
-This release uses the stable Marketplace channel. The public homepage is the developer profile at https://github.com/ravi6565. Optional Issues/Repository metadata is omitted because the source repository is private; support remains available by email from the README. Protection applies to the
+This release uses the stable Marketplace channel. The public homepage is the developer profile at https://github.com/ravi6565. The package retains its existing resource metadata and email support contact. Source and contributor documentation are available in the public GitHub repository. Protection applies to the
 Protected AI Terminal and trusted apply service. Ordinary AI chat extensions are
 outside enforcement; instruction files provide cooperative guidance. Keep this
 scope visible in the listing.

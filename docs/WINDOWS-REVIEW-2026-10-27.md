@@ -103,8 +103,8 @@ non-administrator execution, CLI startup, VS Code integration and installed VSIX
 acceptance. Both macOS Node jobs and both Linux jobs passed.
 
 The final production captured/ignored verification, stronger grandchild
-original-denial assertion and pinned npm security updates still require a fresh
-complete CI run. No native Windows execution is counted from this Mac. Repeat
+original-denial assertion and pinned npm security updates passed the complete
+CI run 41848429599 at commit 81a4a8e6ceadf8fe34c049256ef82c1f6087c079. No native Windows execution is counted from this Mac. Repeat
 the diagnostic and lock/unlock/provider workflow on the affected build 26300
 before declaring that device's incident resolved.
 

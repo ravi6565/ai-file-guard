@@ -1,5 +1,15 @@
 name: CI
-on: [push, pull_request]
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   windows-runtime:
     runs-on: windows-latest
@@ -34,6 +44,20 @@ jobs:
           name: windows-lpac-runtime
           path: resources/windows/runtime
           if-no-files-found: error
+  gate:
+    name: CI gate
+    if: always()
+    needs: [windows-runtime, test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every runtime and test job to pass
+        env:
+          RUNTIME_RESULT: ${{ needs.windows-runtime.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+        run: |
+          test "$RUNTIME_RESULT" = success
+          test "$TEST_RESULT" = success
   test:
     needs: windows-runtime
     timeout-minutes: 20

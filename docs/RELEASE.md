@@ -1,10 +1,6 @@
 # Release status — 0.12.3
 
-**Publication pending affected-PC acceptance:** the rebuilt runtime passed all
-eight matrix jobs in CI run 41693923880, including ignored child streams,
-non-administrator execution and installed VSIX acceptance on Windows 2022/2025.
-Keep those tests enabled. The final npm security updates and strengthened startup
-verification must pass a fresh full CI run before delivering the candidate.
+**Automated acceptance passed:** [CI run 41848429599](https://github.com/ravi6565/ai-file-guard/actions/runs/41848429599), source commit `81a4a8e6ceadf8fe34c049256ef82c1f6087c079`, passed all eight OS/Node jobs and runtime preparation on 4 November 2026. This includes both Windows versions, non-administrator execution, ignored child/grandchild streams, final npm security updates, native checks and installed VSIX acceptance. Publication remains subject to the affected-PC/provider workflow test.
 
 AI File Guard 0.12.3 is a release candidate under publisher `ravikiranv`.
 It corrects Windows verification, runtime pipe handling, failure recovery and

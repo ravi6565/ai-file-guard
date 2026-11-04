@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Consolidate current documentation under README.md and docs/README.md; preserve earlier validation records in docs/archive/.
+- Add contributor guidance, code ownership, a versioned PR-only main ruleset and an aggregate CI gate. Repository settings must be activated separately.
+- Limit the CI token to read-only contents and remove unused ESLint development dependencies.
+
 ## 0.12.3 — Windows verification test candidate
 
 - Separate slow Windows permission setup from bounded runtime execution and retain stage/timing diagnostics on verification errors.

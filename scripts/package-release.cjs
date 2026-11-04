@@ -19,9 +19,9 @@ async function main() {
   if (manifest.publisher !== 'ravikiranv' || manifest.name !== 'ai-file-guard' || manifest.preview !== false) throw new Error('Stable packaging requires the expected publisher, extension ID and preview: false.');
   const homepage = new URL(manifest.homepage);
   if (homepage.protocol !== 'https:' || homepage.hostname === 'marketplace.visualstudio.com') throw new Error('The homepage must be an owned HTTPS project/developer page, not a Marketplace listing.');
-  // The source repository is private. Omitting bugs alone makes VSCE infer
-  // its inaccessible issue tracker from repository, so omit both resources.
-  if (manifest.bugs || manifest.repository) throw new Error('This private-source release uses README email support; omit optional bugs/repository resource metadata.');
+  // Keep the existing Marketplace resource layout and explicit email support.
+  // Repository visibility is independent of these optional listing links.
+  if (manifest.bugs || manifest.repository) throw new Error('This release uses README email support; omit optional bugs/repository resource metadata.');
   if (!/^\d+\.\d+\.\d+$/.test(manifest.version)) throw new Error('Marketplace requires a numeric extension version.');
   const hash = data => createHash('sha256').update(data).digest('hex');
   if (target === 'win32-x64') {
