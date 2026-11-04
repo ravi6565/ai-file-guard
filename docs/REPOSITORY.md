@@ -2,6 +2,8 @@
 
 The repository is public. Branch rules control changes to `main`; they do not prevent reading, cloning or forking source. Keep credentials and machine-local policies out of Git.
 
+The live main ruleset is [26540324](https://github.com/ravi6565/ai-file-guard/rules/26540324), activated on 4 November 2026. Automatic deletion of merged PR branches is enabled. Verify the API state when changing these settings.
+
 ## Main branch rules
 
 The policy in [.github/rulesets/main.json](../.github/rulesets/main.json) requires:

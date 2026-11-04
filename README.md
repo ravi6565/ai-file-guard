@@ -66,7 +66,7 @@ Native tests require a supported host that can launch its OS sandbox. Windows te
 
 ## Contributions and repository rules
 
-Submit changes through a pull request to `main`. The versioned [ruleset](https://github.com/ravi6565/ai-file-guard/blob/main/.github/rulesets/main.json) requires the complete CI gate, blocks force pushes and deletion, and has no bypass actors. The repository owner must activate it in GitHub; committing the JSON alone does not enforce it. See [repository administration](https://github.com/ravi6565/ai-file-guard/blob/main/docs/REPOSITORY.md) for activation and verification.
+Submit changes through a pull request to `main`. GitHub enforces the active [main ruleset](https://github.com/ravi6565/ai-file-guard/rules/26540324): the complete CI gate must pass, force pushes and deletion are blocked, and no actor can bypass the rules. The policy is also [versioned in this repository](https://github.com/ravi6565/ai-file-guard/blob/main/.github/rulesets/main.json). See [repository administration](https://github.com/ravi6565/ai-file-guard/blob/main/docs/REPOSITORY.md) to verify or update the live settings.
 
 ## Privacy, support and license
 
