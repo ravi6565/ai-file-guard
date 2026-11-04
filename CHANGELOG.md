@@ -4,7 +4,8 @@
 
 - Consolidate current documentation under README.md and docs/README.md; preserve earlier validation records in docs/archive/.
 - Add contributor guidance, code ownership, a versioned PR-only main ruleset and an aggregate CI gate. Repository settings must be activated separately.
-- Limit the CI token to read-only contents and remove unused ESLint development dependencies.
+- Limit the CI token to read-only contents/actions and remove unused ESLint development dependencies.
+- Pin Linux/macOS CI images, disable GPU acceleration in headless Linux tests and bound integration-step execution.
 
 ## 0.12.3 — Windows verification test candidate
 

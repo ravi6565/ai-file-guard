@@ -74,7 +74,7 @@ async function main(): Promise<void> {
       vscodeExecutablePath,
       extensionDevelopmentPath: developmentPath,
       extensionTestsPath: path.resolve(__dirname, 'integration', 'index'),
-      launchArgs: [workspace, ...(vsixIndex >= 0 ? [] : ['--disable-extensions']), '--user-data-dir', path.join(testRoot, 'profile'), '--extensions-dir', path.join(testRoot, 'extensions'), '--skip-welcome', '--skip-release-notes'],
+      launchArgs: [workspace, ...(vsixIndex >= 0 ? [] : ['--disable-extensions']), ...(process.platform === 'linux' ? ['--disable-gpu'] : []), '--user-data-dir', path.join(testRoot, 'profile'), '--extensions-dir', path.join(testRoot, 'extensions'), '--skip-welcome', '--skip-release-notes'],
     });
   } catch (error) {
     console.error('VS Code integration tests failed', error);

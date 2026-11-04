@@ -84,7 +84,7 @@ jobs:
     name: CI gate
     if: always()
     needs: [windows-runtime, test]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Require every runtime and test job to pass
@@ -100,7 +100,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-2022, windows-2025]
+        os: [ubuntu-24.04, macos-15-intel, windows-2022, windows-2025]
         node: [22, 24]
     runs-on: ${{ matrix.os }}
     steps:
@@ -146,8 +146,10 @@ jobs:
         env:
           AI_FILE_GUARD_CLI_SMOKE: '1'
       - run: xvfb-run -a npm run test:integration
+        timeout-minutes: 5
         if: runner.os == 'Linux'
       - run: npm run test:integration
+        timeout-minutes: 5
         if: runner.os != 'Linux'
       - run: npm run package
       - run: npm run package:release -- --out candidate.vsix
@@ -182,6 +184,7 @@ jobs:
               assert links == {'Microsoft.VisualStudio.Services.Links.Learn': expected['homepage']}, links
           print('Stable channel, identity, target and checksum verified.')
       - run: npm run test:vsix -- candidate.vsix
+        timeout-minutes: 5
         if: runner.os != 'Linux'
       - uses: actions/upload-artifact@v4
         if: runner.os != 'Linux'
