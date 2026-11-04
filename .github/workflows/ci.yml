@@ -7,6 +7,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -23,9 +24,44 @@ jobs:
         id: runtime
         with:
           path: resources/windows/runtime
-          key: windows-lpac-node-24.22.1-x64-${{ hashFiles('scripts/build-windows-runtime.ps1', 'resources/windows/libuv-appcontainer.patch') }}
+          key: windows-lpac-node-24.22.1-x64-${{ hashFiles('scripts/build-windows-runtime.ps1', 'resources/windows/libuv-appcontainer.patch') }}-${{ hashFiles('resources/windows/npm-security-updates.json', 'scripts/prepare-windows-npm.cjs') }}
+      - name: Restore qualified runtime for the unchanged native build recipe
+        id: qualified-runtime
+        if: steps.runtime.outputs.cache-hit != 'true' && hashFiles('scripts/build-windows-runtime.ps1', 'resources/windows/libuv-appcontainer.patch') == '01e69308c9bca3dfe82c47497f6d9d8bbc7257ac3b176597a33fea97acf4c3bf'
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-lpac-runtime
+          path: resources/windows/runtime
+          run-id: 41848429599
+          github-token: ${{ github.token }}
+      - name: Verify qualified runtime before reuse
+        id: qualified-check
+        if: steps.qualified-runtime.outcome == 'success'
+        shell: python
+        run: |
+          import hashlib, json, os, pathlib
+          root = pathlib.Path('resources/windows')
+          runtime = root / 'runtime'
+          digest = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+          verified = False
+          try:
+              manifest = json.loads((runtime / 'runtime.json').read_text())
+              verified = (
+                  manifest['architecture'] == 'x64'
+                  and manifest['version'] == '24.22.1'
+                  and manifest['sourceSha256'] == '001773d9bd53fbd27a25efd42aa6a9693ebfe500998ca9bec635e9b6ee79bc91'
+                  and manifest['patchSha256'] == digest(root / 'libuv-appcontainer.patch')
+                  and manifest['npmSecurityUpdatesSha256'] == digest(root / 'npm-security-updates.json')
+                  and manifest['nodeSha256'] == digest(runtime / 'node.exe') == 'aaf5964345d35c5cd7f014e87c2ef3348c5ae35e33e72e09e34cb237e7626ee4'
+                  and manifest['npmSha256'] == digest(runtime / 'npm.tar') == '89bcf7c8e269df416516969ae9f991b5a21d4562b80f444604671cdaedaca1e0'
+              )
+          except (OSError, ValueError, KeyError) as error:
+              print(f'Qualified runtime unavailable; compile from source: {error}')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'verified={str(verified).lower()}\n')
       - name: Build private runtime with upstream AppContainer pipe fix
-        if: steps.runtime.outputs.cache-hit != 'true'
+        if: steps.runtime.outputs.cache-hit != 'true' && steps.qualified-check.outputs.verified != 'true'
         shell: pwsh
         run: ./scripts/build-windows-runtime.ps1
       - uses: actions/setup-node@v4

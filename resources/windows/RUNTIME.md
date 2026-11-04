@@ -101,3 +101,13 @@ terminal's unlimited lifetime. An outer host deadline must still bound setup.
 Use [the Windows diagnostic procedure](../../docs/WINDOWS-REVIEW-2026-10-27.md)
 to distinguish permission setup, runtime startup and child I/O. Do not bypass
 the extension's verification or infer Windows client support from a server pass.
+
+## CI reuse of the qualified runtime
+
+CI can restore the artifact from accepted run 41848429599 when the native build
+recipe is unchanged. Before reuse it checks the exact Node/npm binary hashes,
+source version/hash, patch hash and security-plan hash. A missing, expired or
+mismatched artifact falls back to the source build. npm preparation and its
+advisory scan still run for every CI runtime job. Cache keys include the native
+recipe and npm security preparation inputs. Update the pinned artifact only after
+a new runtime has passed full native and installed-package acceptance.
